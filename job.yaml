@@ -1,0 +1,28 @@
+---
+kind: CollectJob
+metadata:
+  name: test
+spec:
+  collectors:
+    - id: kind
+      terraform:
+        provider: hashicorp/kubernetes
+        args:
+          config_path: ~/.kube/config
+          config_context: kind-kind
+  steps:
+    - id: deployments
+      terraform_datasource:
+        name: kubernetes_resources
+        collector: kind
+        args:
+          api_version: apps/v1
+          kind: Deployment
+          namespace: kube-system
+  output:
+    encoding:
+      json:
+        indent: "  "
+    destination:
+      folder:
+        path: ./output/kind
