@@ -1,5 +1,6 @@
 package engine
 
 type Result struct {
-	Data any
+	ID   string `json:"id"`
+	Data any    `json:"data"`
 }

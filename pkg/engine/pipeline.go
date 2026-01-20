@@ -15,8 +15,6 @@ type Pipeline struct {
 	name       string
 	collectors map[string]Collector
 	steps      []StepEntry
-	encoder    Encoder
-	writer     Writer
 }
 
 func NewPipeline(name string) *Pipeline {
@@ -63,38 +61,24 @@ func (p *Pipeline) GetCollector(id string) (Collector, bool) {
 	return collector, true
 }
 
-func (p *Pipeline) SetEncoder(encoder Encoder) {
-	p.encoder = encoder
-}
-
-func (p *Pipeline) SetWriter(writer Writer) {
-	p.writer = writer
-}
-
-func (p *Pipeline) Writer() Writer {
-	return p.writer
-}
-
-func (p *Pipeline) Run(ctx context.Context) error {
+func (p *Pipeline) Run(ctx context.Context) (map[string]Result, error) {
 	results := make(map[string]Result)
 
 	for _, entry := range p.steps {
 		// Check context cancellation before each step
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("context cancelled while running pipeline at step '%s': %w", entry.ID, err)
+			return nil, fmt.Errorf("context cancelled while running pipeline at step '%s': %w", entry.ID, err)
 		}
 
 		result, err := entry.Step.Resolve(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to resolve step '%s': %w", entry.ID, err)
+			return nil, fmt.Errorf("failed to resolve step '%s': %w", entry.ID, err)
 		}
+
+		result.ID = entry.ID
 
 		results[entry.ID] = result
 	}
 
-	if err := p.writer.Write(ctx, results, p.encoder); err != nil {
-		return fmt.Errorf("failed to write results: %w", err)
-	}
-
-	return nil
+	return results, nil
 }

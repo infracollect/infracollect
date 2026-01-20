@@ -26,3 +26,4 @@ spec:
     destination:
       folder:
         path: ./output/kind
+        prefix: $JOB_NAME/$JOB_DATE_RFC3339

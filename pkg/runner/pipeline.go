@@ -3,14 +3,15 @@ package runner
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	v1 "github.com/adrien-f/infracollect/apis/v1"
 	"github.com/adrien-f/infracollect/pkg/collectors/terraform"
 	"github.com/adrien-f/infracollect/pkg/engine"
-	jsonencoder "github.com/adrien-f/infracollect/pkg/engine/encoders/json"
-	"github.com/adrien-f/infracollect/pkg/engine/writers/bundle"
-	"github.com/adrien-f/infracollect/pkg/engine/writers/folder"
-	"github.com/adrien-f/infracollect/pkg/engine/writers/stream"
+	"github.com/adrien-f/infracollect/pkg/engine/encoders"
+	"github.com/adrien-f/infracollect/pkg/engine/sinks"
 	tfclient "github.com/adrien-f/tf-data-client"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
@@ -76,42 +77,81 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 		}
 	}
 
-	// Build encoder and writer from output spec
-	pipeline.SetEncoder(buildEncoder(spec.Output))
-	pipeline.SetWriter(buildWriter(spec.Output))
-
 	return pipeline, nil
 }
 
 // buildEncoder creates an encoder from the output spec.
 // Defaults to compact JSON if no encoding is specified.
-func buildEncoder(output *v1.OutputSpec) engine.Encoder {
-	cfg := jsonencoder.Config{}
-
-	if output != nil && output.Encoding != nil && output.Encoding.JSON != nil {
-		cfg.Indent = output.Encoding.JSON.Indent
+func buildEncoder(output *v1.OutputSpec) (engine.Encoder, error) {
+	if output == nil || output.Encoding == nil {
+		return encoders.NewJSONEncoder(""), nil
 	}
 
-	return jsonencoder.New(cfg)
+	if output.Encoding.JSON != nil {
+		return encoders.NewJSONEncoder(output.Encoding.JSON.Indent), nil
+	}
+
+	return nil, fmt.Errorf("unknown encoding type")
 }
 
-// buildWriter creates a writer from the output spec.
-// Defaults to stdout if no destination is specified.
-func buildWriter(output *v1.OutputSpec) engine.Writer {
-	if output == nil || output.Destination == nil {
-		return stream.New(os.Stdout)
+// buildSink creates a sink from the job spec.
+//
+// Default behavior:
+//   - No output spec: stdout sink
+//   - No sink specified: stdout sink
+//   - Explicit stdout sink: stdout sink
+//   - Explicit filesystem sink: filesystem sink
+func buildSink(job v1.CollectJob) (engine.Sink, error) {
+	// No output spec = stdout
+	if job.Spec.Output == nil {
+		return sinks.NewStreamSink(os.Stdout), nil
 	}
 
-	dest := output.Destination
+	sinkSpec := job.Spec.Output.Sink
 
-	if dest.Folder != nil {
-		return folder.New(dest.Folder.Path)
+	// No sink specified = stdout
+	if sinkSpec == nil {
+		return sinks.NewStreamSink(os.Stdout), nil
 	}
 
-	if dest.Zip != nil {
-		return bundle.NewZipWriter(dest.Zip.Path)
+	// Explicit sink configuration
+	if sinkSpec.Stdout != nil {
+		return sinks.NewStreamSink(os.Stdout), nil
+	}
+	if sinkSpec.Filesystem != nil {
+		return buildFilesystemSink(job)
 	}
 
-	// Default to stdout (including explicit stdout spec)
-	return stream.New(os.Stdout)
+	return nil, fmt.Errorf("invalid sink configuration: no sink type specified")
+}
+
+func buildFilesystemSink(job v1.CollectJob) (engine.Sink, error) {
+	var path string
+	var prefix string
+
+	// Extract path and prefix from spec if available
+	if job.Spec.Output != nil && job.Spec.Output.Sink != nil && job.Spec.Output.Sink.Filesystem != nil {
+		fs := job.Spec.Output.Sink.Filesystem
+		if fs.Path != nil {
+			path = *fs.Path
+		}
+		if fs.Prefix != nil {
+			prefix = *fs.Prefix
+		}
+	}
+
+	// Default path to current working directory
+	if path == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get working directory: %w", err)
+		}
+		path = wd
+	}
+
+	// Expand prefix variables
+	prefix = strings.ReplaceAll(prefix, "$JOB_NAME", job.Metadata.Name)
+	prefix = strings.ReplaceAll(prefix, "$JOB_DATE_RFC3339", time.Now().UTC().Format(time.RFC3339))
+
+	return sinks.NewFilesystemSinkFromPath(filepath.Join(path, prefix))
 }

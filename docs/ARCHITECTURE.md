@@ -159,6 +159,19 @@ Pipeline.Run() → Step.Resolve() → Collector.ReadDataSource()
 Step Results → Map[string]Result → Returned to Runner
 ```
 
+### 7. Result Writing
+
+```
+Runner.WriteResults() → Encoder.EncodeResult() → Sink.Write()
+→ Files written (one per step) or stdout output
+```
+
+The Runner handles all result writing:
+- Encodes each result using the configured encoder
+- Writes to the configured sink (stdout or filesystem)
+- Each step's result is written as a separate file with filename `{step-id}.{extension}`
+- Results include an `id` field identifying the step
+
 ## Multi-Collector Execution Model
 
 ### Isolation
@@ -225,11 +238,34 @@ Steps execute data collection operations and return results. The `terraform` pac
 
 ```go
 type Result struct {
-    Data any
+    ID   string `json:"id"`
+    Data any    `json:"data"`
 }
 ```
 
-Results contain the collected data from a step's data source query.
+Results contain:
+- `ID`: The step identifier that produced this result
+- `Data`: The collected data from the step's data source query
+
+### Runner
+
+**Location**: `pkg/runner/run.go`
+
+**Responsibilities**:
+- Orchestrate pipeline execution
+- Manage collector lifecycle (start/close)
+- Write results to configured sink
+- Handle encoding and output formatting
+
+**Key Methods**:
+- `New()`: Creates a new Runner with pipeline, encoder, and sink
+- `Run()`: Executes the pipeline and writes results
+- `WriteResults()`: Encodes and writes results to the sink
+
+**Output Behavior**:
+- Always writes one file per step with filename `{step-id}.{extension}`
+- For stdout: each result written as a separate line
+- For filesystem: each result written to its own file in the configured directory
 
 ## Error Handling
 
@@ -246,6 +282,44 @@ All errors are wrapped with context and returned through the interface methods. 
 - Log levels: debug, info, warn, error, fatal
 - Context-aware logging throughout the pipeline
 - Collector-specific log contexts
+
+## Output System
+
+The output system has been simplified to remove the Output abstraction layer. Results are now written directly by the Runner:
+
+### Encoders
+
+**Location**: `pkg/engine/encoders/`
+
+**Responsibilities**:
+- Encode results into specific formats (JSON, YAML, etc.)
+- Provide file extensions for output files
+
+**Interfaces**:
+- `Encoder`: Encodes a single result to a reader
+
+### Sinks
+
+**Location**: `pkg/engine/sinks/`
+
+**Responsibilities**:
+- Write encoded data to destinations (stdout, filesystem)
+- Handle file creation and directory management
+
+**Interfaces**:
+- `Sink`: Writes data to a destination with a given path
+
+**Types**:
+- `StreamSink`: Writes to an `io.Writer` (typically stdout)
+- `FilesystemSink`: Writes to files on the local filesystem
+
+### Writing Flow
+
+1. Runner collects results from Pipeline.Run()
+2. For each result:
+   - Encoder encodes the result
+   - Sink writes the encoded data with filename `{step-id}.{extension}`
+3. Sink is closed after all results are written
 
 ## Future Architecture Considerations
 

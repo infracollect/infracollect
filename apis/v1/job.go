@@ -1,7 +1,7 @@
 package v1
 
 type CollectJob struct {
-	Kind     string         `yaml:"kind" json:"kind"`
+	Kind     string         `yaml:"kind" json:"kind" validate:"required,eq=CollectJob"`
 	Metadata Metadata       `yaml:"metadata" json:"metadata"`
 	Spec     CollectJobSpec `yaml:"spec" json:"spec"`
 }
@@ -35,18 +35,26 @@ type TerraformDataSourceStep struct {
 }
 
 // OutputSpec configures how results are written.
+// The output system has three concerns:
+//   - Encoding: How to format the data (JSON, YAML, etc.)
+//   - Sink: Where to write (stdout, filesystem)
+//
+// Defaults: JSON encoding, stdout sink.
 type OutputSpec struct {
 	// Encoding configures the output format (default: json with compact output).
 	Encoding *EncodingSpec `yaml:"encoding,omitempty" json:"encoding,omitempty"`
 
-	// Destination configures where output is written (default: stdout).
-	Destination *DestinationSpec `yaml:"destination,omitempty" json:"destination,omitempty"`
+	// Sink configures where output is written (default: stdout for stream mode,
+	// filesystem for files mode).
+	Sink *SinkSpec `yaml:"sink,omitempty" json:"sink,omitempty"`
 }
 
-// EncodingSpec configures the encoder (one of the fields should be set).
+// EncodingSpec configures the encoder. Exactly one field should be set.
+// If none is set, defaults to compact JSON.
 type EncodingSpec struct {
+	// JSON configures JSON encoding.
 	JSON *JSONEncodingSpec `yaml:"json,omitempty" json:"json,omitempty"`
-	// YAML *YAMLEncodingSpec - future
+	// YAML *YAMLEncodingSpec `yaml:"yaml,omitempty" json:"yaml,omitempty"` - future
 }
 
 // JSONEncodingSpec configures JSON encoding.
@@ -55,24 +63,28 @@ type JSONEncodingSpec struct {
 	Indent string `yaml:"indent,omitempty" json:"indent,omitempty"`
 }
 
-// DestinationSpec configures output destination (one of the fields should be set).
-type DestinationSpec struct {
-	Stdout *StdoutSpec `yaml:"stdout,omitempty" json:"stdout,omitempty"`
-	Folder *FolderSpec `yaml:"folder,omitempty" json:"folder,omitempty"`
-	Zip    *ZipSpec    `yaml:"zip,omitempty" json:"zip,omitempty"`
+// SinkSpec configures where output is written. Exactly one field should be set.
+// If none is set, defaults based on mode: stdout for stream, filesystem for files.
+type SinkSpec struct {
+	// Stdout writes to standard output.
+	Stdout *StdoutSinkSpec `yaml:"stdout,omitempty" json:"stdout,omitempty" validate:"excluded_with=Filesystem"`
+
+	// Filesystem writes to files on the local filesystem.
+	Filesystem *FilesystemSinkSpec `yaml:"filesystem,omitempty" json:"filesystem,omitempty" validate:"excluded_with=Stdout"`
 }
 
-// StdoutSpec configures stdout output (no options currently).
-type StdoutSpec struct{}
-
-// FolderSpec configures folder output with one file per step.
-type FolderSpec struct {
-	// Path is the directory path to write output files.
-	Path string `yaml:"path" json:"path"`
+// StdoutSinkSpec configures stdout output.
+type StdoutSinkSpec struct {
+	// No configuration needed for stdout.
 }
 
-// ZipSpec configures ZIP archive output.
-type ZipSpec struct {
-	// Path is the path to the ZIP file to create.
-	Path string `yaml:"path" json:"path"`
+// FilesystemSinkSpec configures filesystem output.
+type FilesystemSinkSpec struct {
+	// Path is the directory to write files to (default: current directory).
+	Path *string `yaml:"path,omitempty" json:"path,omitempty"`
+
+	// Prefix is prepended to filenames. Supports variables:
+	//   - $JOB_NAME: The job's metadata.name
+	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format
+	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
 }

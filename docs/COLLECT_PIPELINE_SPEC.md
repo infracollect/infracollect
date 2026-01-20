@@ -4,6 +4,14 @@
 
 A `CollectJob` is a YAML document that defines a collection job for gathering infrastructure resources using Terraform providers through the `tf-data-client` library.
 
+### Output Behavior
+
+Results are always written as **one file per step**, with filenames following the pattern `{step-id}.{extension}` (e.g., `deployments.json`). Each result includes:
+- `id`: The step identifier that produced this result
+- `data`: The actual result data from the data source
+
+When writing to stdout, each result is written as a separate line. When writing to the filesystem, each result is written to its own file.
+
 ## Schema
 
 ```yaml
@@ -28,12 +36,11 @@ spec:
     encoding?:           # Optional: Encoding format configuration
       json?:             # Optional: JSON encoding options
         indent?: string  # Optional: Indentation (empty = compact, "  " = 2 spaces, "\t" = tabs)
-    destination?:        # Optional: Output destination configuration
-      stdout?: {}        # Optional: Write to stdout
-      folder?:           # Optional: Write to folder (one file per step)
-        path: string     # Required: Directory path
-      zip?:              # Optional: Write to ZIP archive
-        path: string     # Required: ZIP file path
+    sink?:               # Optional: Output destination configuration
+      stdout?: {}        # Optional: Write to stdout (one result per line)
+      filesystem?:       # Optional: Write to filesystem (one file per step)
+        path?: string    # Optional: Directory path (default: current directory)
+        prefix?: string  # Optional: Prefix for output directory (supports $JOB_NAME, $JOB_DATE_RFC3339)
 ```
 
 ## Field Descriptions
@@ -77,7 +84,8 @@ spec:
 ##### `spec.output` (optional)
 - **Type**: `object`
 - **Description**: Configures how results are written
-- **Default**: If not specified, results are written to stdout as compact JSON
+- **Default**: If not specified, results are written to stdout as compact JSON (one result per line)
+- **Behavior**: Results are always written as one file per step, with filenames `{step-id}.{extension}` (e.g., `deployments.json`)
 
 ### Output Specification
 
@@ -104,35 +112,40 @@ spec:
   - `indent: "  "` - Pretty-printed with 2 spaces
   - `indent: "\t"` - Pretty-printed with tabs
 
-#### `spec.output.destination` (optional)
+#### `spec.output.sink` (optional)
 - **Type**: `object`
 - **Description**: Configures where output is written
 - **Default**: If not specified, results are written to stdout
-- **Note**: Only one destination type should be specified
+- **Note**: Only one sink type should be specified
+- **Behavior**: All sinks write one file per step. For stdout, each result is written as a separate line.
 
-##### `spec.output.destination.stdout` (optional)
+##### `spec.output.sink.stdout` (optional)
 - **Type**: `object`
 - **Description**: Write output to standard output
 - **Note**: Currently has no configuration options (empty object `{}`)
+- **Format**: Each step's result is written as a separate line. Results include an `id` field identifying the step.
 
-##### `spec.output.destination.folder` (optional)
+##### `spec.output.sink.filesystem` (optional)
 - **Type**: `object`
-- **Description**: Write output to a folder with one file per step
-- **File Naming**: Each step's output is written to a file named `{step-id}.json` (or appropriate extension based on encoding)
+- **Description**: Write output to files on the local filesystem
+- **File Naming**: Each step's output is written to a file named `{step-id}.{extension}` (e.g., `deployments.json`)
+- **Location**: Files are written to `{path}/{prefix}/` if both are specified, or just `{path}/` if only path is specified
 
-##### `spec.output.destination.folder.path` (required)
+##### `spec.output.sink.filesystem.path` (optional)
 - **Type**: `string`
 - **Description**: Directory path where output files will be written
+- **Default**: Current working directory
 - **Note**: Directory will be created if it doesn't exist
 
-##### `spec.output.destination.zip` (optional)
-- **Type**: `object`
-- **Description**: Write output to a ZIP archive with one file per step
-
-##### `spec.output.destination.zip.path` (required)
+##### `spec.output.sink.filesystem.prefix` (optional)
 - **Type**: `string`
-- **Description**: Path to the ZIP file to create
-- **Note**: ZIP file will be created or overwritten if it exists
+- **Description**: Prefix prepended to the path, useful for organizing outputs by job name and date
+- **Variables**: Supports variable substitution:
+  - `$JOB_NAME`: Replaced with the job's `metadata.name`
+  - `$JOB_DATE_RFC3339`: Replaced with current UTC time in RFC3339 format (e.g., `2026-01-19T08:18:15Z`)
+- **Examples**:
+  - `prefix: $JOB_NAME/$JOB_DATE_RFC3339` → `test/2026-01-19T08:18:15Z/`
+  - `prefix: outputs` → `outputs/`
 
 ### Collector Specification
 
@@ -210,9 +223,7 @@ spec:
 5. **Reference Validation**: All collector references in steps must exist
 6. **Output Validation**:
    - If `output.encoding` is specified, exactly one encoding type should be set
-   - If `output.destination` is specified, exactly one destination type should be set
-   - If `output.destination.folder` is specified, `path` is required
-   - If `output.destination.zip` is specified, `path` is required
+   - If `output.sink` is specified, exactly one sink type should be set
 
 ## Examples
 
@@ -361,7 +372,7 @@ spec:
     encoding:
       json:
         indent: "  "
-    destination:
+    sink:
       stdout: {}
 ```
 
@@ -388,12 +399,12 @@ spec:
     encoding:
       json:
         indent: ""
-    destination:
-      folder:
+    sink:
+      filesystem:
         path: ./output
 ```
 
-#### Pretty-Printed JSON to ZIP Archive
+#### Pretty-Printed JSON to Filesystem with Prefix
 
 ```yaml
 kind: CollectJob
@@ -426,9 +437,10 @@ spec:
     encoding:
       json:
         indent: "\t"
-    destination:
-      zip:
-        path: ./inventory.zip
+    sink:
+      filesystem:
+        path: ./output
+        prefix: $JOB_NAME/$JOB_DATE_RFC3339
 ```
 
 #### Default Output (Compact JSON to Stdout)
@@ -495,4 +507,6 @@ Provider arguments can reference environment variables using `${VARIABLE_NAME}` 
 5. **Documentation**: Add descriptions to complex pipelines
 6. **Validation**: Validate pipelines before execution
 7. **Output Format**: Use pretty-printed JSON (`indent: "  "`) for human-readable output, compact JSON for machine processing
-8. **Output Destination**: Use `folder` for local development and debugging, `zip` for distribution, `stdout` for piping to other tools
+8. **Output Destination**: Use `filesystem` for local development and debugging, `stdout` for piping to other tools or streaming results
+9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_RFC3339` variables to organize outputs by job and timestamp
+10. **Result Structure**: Each result includes an `id` field identifying the step that produced it, along with the `data` field containing the actual result data
