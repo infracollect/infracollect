@@ -10,12 +10,11 @@ import (
 	"github.com/adrien-f/infracollect/pkg/engine"
 )
 
-// Encoder implements engine.Encoder for JSON format.
+// JSONEncoder encodes results as JSON.
 type JSONEncoder struct {
 	indent string
 }
 
-// New creates a new JSON encoder with the given configuration.
 func NewJSONEncoder(indent string) engine.Encoder {
 	return &JSONEncoder{
 		indent: indent,
@@ -50,7 +49,6 @@ func (e *JSONEncoder) EncodeResults(ctx context.Context, results map[string]engi
 	return &buff, nil
 }
 
-// FileExtension returns "json".
 func (e *JSONEncoder) FileExtension() string {
 	return "json"
 }

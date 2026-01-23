@@ -2,7 +2,9 @@
 
 ## System Overview
 
-infracollect follows a pipeline-based architecture where YAML-defined collection jobs are parsed, validated, and executed to collect infrastructure resources using Terraform providers via the `tf-data-client` library.
+infracollect follows a pipeline-based architecture where YAML-defined collection jobs are parsed, validated, and executed to collect infrastructure resources. It supports multiple collector types:
+- **Terraform collectors**: Use Terraform providers via the `tf-data-client` library
+- **HTTP collectors**: Make HTTP requests to REST APIs
 
 ## Architecture Diagram
 
@@ -12,34 +14,35 @@ flowchart TD
     Parser --> Validate[Validation]
     Validate --> Runner[Runner]
     Runner --> Pipeline[Pipeline]
-    Pipeline --> C1[Collector 1]
-    Pipeline --> C2[Collector 2]
-    Pipeline --> CN[Collector N]
 
-    C1 --> TFClient[tf-data-client]
-    C2 --> TFClient
-    CN --> TFClient
+    Pipeline --> Collectors[Collectors]
+    Collectors --> TFC[Terraform Collectors]
+    Collectors --> HC[HTTP Collectors]
 
+    TFC --> TFClient[tf-data-client]
     TFClient --> Provider1[Terraform Provider 1]
-    TFClient --> Provider2[Terraform Provider 2]
     TFClient --> ProviderN[Terraform Provider N]
 
+    HC --> HTTPClient[HTTP Client]
+    HTTPClient --> API1[REST API 1]
+    HTTPClient --> APIN[REST API N]
+
     Provider1 --> Results1[Resource Data]
-    Provider2 --> Results2[Resource Data]
-    ProviderN --> ResultsN[Resource Data]
+    ProviderN --> Results2[Resource Data]
+    API1 --> Results3[API Response]
+    APIN --> Results4[API Response]
 
     Pipeline --> Steps[Steps]
-    Steps --> Step1[Step 1]
-    Steps --> Step2[Step 2]
-    Steps --> StepN[Step N]
+    Steps --> TFStep[Terraform Steps]
+    Steps --> HTTPStep[HTTP Steps]
 
-    Step1 --> Collector1[Collector 1]
-    Step2 --> Collector2[Collector 2]
-    StepN --> CollectorN[Collector N]
+    TFStep --> TFC
+    HTTPStep --> HC
 
     Results1 --> Final[Results Map]
     Results2 --> Final
-    ResultsN --> Final
+    Results3 --> Final
+    Results4 --> Final
 ```
 
 ## Component Breakdown
@@ -73,34 +76,54 @@ flowchart TD
 - `GetCollector()`: Retrieve a collector by ID
 - `Run()`: Execute all steps and return results
 
-### 3. Collector
+### 3. Collectors
 
-**Location**: `pkg/collectors/terraform/`
+**Locations**:
+- `pkg/collectors/terraform/` - Terraform provider collector
+- `pkg/collectors/http/` - HTTP REST API collector
+
+**Responsibilities**:
+- Abstract data collection from various sources
+- Initialize and configure connections
+- Execute queries/requests
+- Manage lifecycle (start/close)
+
+**Interfaces**:
+- `Collector` (in `pkg/engine/collector.go`)
+
+#### Terraform Collector
 
 **Responsibilities**:
 - Wrap Terraform providers using `tf-data-client`
 - Initialize and configure providers
 - Execute data source queries
-- Manage provider lifecycle (start/close)
 
-**Interfaces**:
-- `Collector` (in `pkg/engine/collector.go`)
+#### HTTP Collector
 
-### 4. Step
+**Responsibilities**:
+- Make HTTP requests to REST APIs
+- Handle authentication (Basic auth)
+- Manage headers, timeouts, and TLS settings
+- Support gzip response decompression
 
-**Location**: `pkg/collectors/terraform/steps.go`
+### 4. Steps
+
+**Locations**:
+- `pkg/collectors/terraform/steps.go` - Terraform data source steps
+- `pkg/collectors/http/steps.go` - HTTP request steps
 
 **Responsibilities**:
 - Represent a data collection operation
-- Reference a collector and data source
-- Execute data source queries through the collector
+- Reference a collector
+- Execute queries/requests through the collector
 - Return results in standardized format
 
 **Interfaces**:
 - `Step` (in `pkg/engine/step.go`)
 
-**Implementation**:
-- `dataSourceStep`: Executes Terraform data sources through collectors
+**Implementations**:
+- `dataSourceStep`: Executes Terraform data sources through terraform collectors
+- `getStep`: Executes HTTP GET requests through HTTP collectors
 
 ### 5. tf-data-client Integration
 
@@ -140,17 +163,31 @@ CollectJob → runner.createPipeline() → Pipeline with Collectors and Steps
 
 ### 4. Collector Initialization
 
+**Terraform Collectors**:
 ```
 Collector.Start() → tf-data-client.CreateProvider() → Provider instance
 → Provider.Configure() → Provider configured
 ```
 
+**HTTP Collectors**:
+```
+Collector.Start() → (no-op, HTTP client is ready)
+```
+
 ### 5. Step Execution
 
+**Terraform Steps**:
 ```
 Pipeline.Run() → Step.Resolve() → Collector.ReadDataSource()
 → tf-data-client Provider → Resource Data
 → Result struct
+```
+
+**HTTP Steps**:
+```
+Pipeline.Run() → Step.Resolve() → Collector.Do(request)
+→ HTTP Client → API Response
+→ JSON/Raw parsing → Result struct
 ```
 
 ### 6. Result Collection
@@ -176,10 +213,17 @@ The Runner handles all result writing:
 
 ### Isolation
 
-Each collector operates with its own provider instance managed by `tf-data-client`:
-- Each collector has its own provider configuration
+Each collector operates independently:
+
+**Terraform Collectors**:
+- Each collector has its own provider instance managed by `tf-data-client`
 - Providers are isolated at the library level
 - No shared state between collectors
+
+**HTTP Collectors**:
+- Each collector has its own HTTP client instance
+- Separate base URLs, headers, and authentication
+- Connection pooling per collector
 
 ### Concurrent Execution
 
@@ -194,16 +238,18 @@ Steps reference collectors by ID:
 
 ```yaml
 steps:
+  # Terraform data source step
   - id: step1
     terraform_datasource:
-      collector: collector-1  # References collector by ID
+      collector: k8s-collector  # References terraform collector
       name: kubernetes_resources
       args: {...}
+  # HTTP GET step
   - id: step2
-    terraform_datasource:
-      collector: collector-1  # Same collector, different data source
-      name: aws_instances
-      args: {...}
+    http_get:
+      collector: api-collector  # References HTTP collector
+      path: /users
+      response_type: json
 ```
 
 ## Interface Contracts
@@ -218,10 +264,17 @@ type Collector interface {
 }
 ```
 
-The `Collector` interface is implemented by `terraform.Collector` which provides:
+**Implementations**:
+
+`terraform.Collector`:
 - `Start()`: Initializes and configures the Terraform provider via `tf-data-client`
-- `ReadDataSource()`: Executes a data source query (not part of interface, but used by steps)
+- `ReadDataSource()`: Executes a data source query (used by terraform steps)
 - `Close()`: Cleans up the provider instance
+
+`http.Collector`:
+- `Start()`: No-op (HTTP client is created in constructor)
+- `Do()`: Executes an HTTP request (used by HTTP steps)
+- `Close()`: No-op (HTTP client cleanup is automatic)
 
 ### Step Interface
 
@@ -232,7 +285,11 @@ type Step interface {
 }
 ```
 
-Steps execute data collection operations and return results. The `terraform` package provides `NewDataSourceStep()` which creates steps that execute Terraform data sources.
+Steps execute data collection operations and return results.
+
+**Implementations**:
+- `terraform.NewDataSourceStep()`: Creates steps that execute Terraform data sources
+- `http.NewGetStep()`: Creates steps that execute HTTP GET requests
 
 ### Result Type
 

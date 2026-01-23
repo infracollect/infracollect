@@ -2,7 +2,9 @@
 
 ## Overview
 
-A `CollectJob` is a YAML document that defines a collection job for gathering infrastructure resources using Terraform providers through the `tf-data-client` library.
+A `CollectJob` is a YAML document that defines a collection job for gathering infrastructure resources. It supports multiple collector types:
+- **Terraform**: Uses Terraform providers through the `tf-data-client` library
+- **HTTP**: Makes HTTP requests to REST APIs
 
 ### Output Behavior
 
@@ -22,16 +24,34 @@ metadata:
 spec:
   collectors:           # Required: List of collector definitions
     - id: string        # Required: Unique collector identifier
+      # One of the following collector types:
       terraform:
         provider: string    # Required: Provider name (e.g., "hashicorp/kubernetes")
         version?: string    # Optional: Provider version (e.g., "v2.32.0")
         args: object        # Required: Provider configuration arguments
+      http:
+        base_url: string    # Required: Base URL for HTTP requests
+        headers?: object    # Optional: Default headers for all requests
+        timeout?: duration  # Optional: Request timeout (default: 30s)
+        insecure?: boolean  # Optional: Skip TLS verification (default: false)
+        auth?:              # Optional: Authentication configuration
+          basic?:           # Optional: Basic authentication
+            username?: string
+            password?: string
+            encoded?: string  # Base64-encoded credentials
   steps:                # Required: List of collection steps
     - id: string        # Required: Unique step identifier
+      # One of the following step types:
       terraform_datasource:
         name: string        # Required: Terraform data source name
         collector: string   # Required: Collector ID to use
         args: object        # Required: Data source arguments
+      http_get:
+        collector: string   # Required: HTTP collector ID to use
+        path: string        # Required: Request path (appended to base_url)
+        headers?: object    # Optional: Request-specific headers
+        params?: object     # Optional: Query parameters
+        response_type?: string  # Optional: "json" (default) or "raw"
   output?:              # Optional: Output configuration
     encoding?:           # Optional: Encoding format configuration
       json?:             # Optional: JSON encoding options
@@ -178,6 +198,46 @@ spec:
 - **Description**: Provider-specific configuration arguments
 - **Note**: Arguments vary by provider. Refer to provider documentation.
 
+#### `collectors[].http` (optional)
+- **Type**: `object`
+- **Description**: HTTP collector configuration for REST API requests
+- **Note**: Mutually exclusive with `terraform`
+
+##### `collectors[].http.base_url` (required)
+- **Type**: `string`
+- **Description**: Base URL for all HTTP requests (must use http or https scheme)
+- **Examples**: `https://api.example.com`, `http://localhost:8080/api/v1`
+
+##### `collectors[].http.headers` (optional)
+- **Type**: `object`
+- **Description**: Default headers to include in all requests
+- **Default Headers**: `User-Agent: infracollect/0.1.0`, `Accept: application/json`, `Accept-Encoding: gzip`
+- **Note**: Custom headers override defaults
+
+##### `collectors[].http.timeout` (optional)
+- **Type**: `duration`
+- **Description**: Request timeout
+- **Default**: `30s`
+- **Examples**: `10s`, `1m`, `500ms`
+
+##### `collectors[].http.insecure` (optional)
+- **Type**: `boolean`
+- **Description**: Skip TLS certificate verification
+- **Default**: `false`
+- **Warning**: Only use for development/testing
+
+##### `collectors[].http.auth` (optional)
+- **Type**: `object`
+- **Description**: Authentication configuration
+
+##### `collectors[].http.auth.basic` (optional)
+- **Type**: `object`
+- **Description**: HTTP Basic authentication
+- **Fields**:
+  - `username`: Username for authentication
+  - `password`: Password for authentication
+  - `encoded`: Pre-encoded Base64 credentials (alternative to username/password)
+
 ### Step Specification
 
 #### `steps[].id` (required)
@@ -207,6 +267,39 @@ spec:
 - **Description**: Data source-specific arguments
 - **Note**: Arguments vary by data source. Refer to provider documentation.
 
+#### `steps[].http_get` (optional)
+- **Type**: `object`
+- **Description**: HTTP GET request step configuration
+- **Note**: Mutually exclusive with `terraform_datasource`
+
+##### `steps[].http_get.collector` (required)
+- **Type**: `string`
+- **Description**: ID of the HTTP collector to use for this step
+- **Constraints**: Must reference an HTTP collector ID defined in `spec.collectors`
+
+##### `steps[].http_get.path` (required)
+- **Type**: `string`
+- **Description**: Request path appended to the collector's base_url
+- **Examples**: `/users`, `/api/v1/resources`, `/items?page=1`
+
+##### `steps[].http_get.headers` (optional)
+- **Type**: `object`
+- **Description**: Additional headers for this specific request
+- **Note**: These headers are merged with collector-level headers (request headers take precedence)
+
+##### `steps[].http_get.params` (optional)
+- **Type**: `object`
+- **Description**: Query parameters to append to the request URL
+- **Note**: Parameters are URL-encoded automatically
+
+##### `steps[].http_get.response_type` (optional)
+- **Type**: `string`
+- **Description**: How to parse the response body
+- **Values**:
+  - `json` (default): Parse response as JSON
+  - `raw`: Return response body as a string
+- **Note**: Gzip-encoded responses are automatically decompressed
+
 ## Validation Rules
 
 1. **Kind Validation**: `kind` must be `"CollectJob"`
@@ -214,13 +307,15 @@ spec:
 3. **Collector Validation**:
    - At least one collector must be defined
    - Each collector must have a unique `id`
-   - Each collector must have `terraform.provider` and `terraform.args`
+   - Each collector must have exactly one of: `terraform` or `http`
+   - Terraform collectors must have `provider` and `args`
+   - HTTP collectors must have `base_url`
 4. **Step Validation**:
    - At least one step must be defined
    - Each step must have a unique `id`
-   - Each step must reference a valid collector ID
-   - Each step must have `terraform_datasource.name` and `terraform_datasource.args`
-5. **Reference Validation**: All collector references in steps must exist
+   - Each step must have exactly one of: `terraform_datasource` or `http_get`
+   - Each step must reference a valid collector ID of the matching type
+5. **Reference Validation**: All collector references in steps must exist and be of compatible type
 6. **Output Validation**:
    - If `output.encoding` is specified, exactly one encoding type should be set
    - If `output.sink` is specified, exactly one sink type should be set
@@ -343,6 +438,84 @@ spec:
           filters:
             - name: tag:Environment
               values: [production]
+```
+
+### HTTP API Example
+
+```yaml
+kind: CollectJob
+metadata:
+  name: api-collection
+  description: Collect data from REST APIs
+spec:
+  collectors:
+    - id: jsonplaceholder
+      http:
+        base_url: https://jsonplaceholder.typicode.com
+    - id: internal-api
+      http:
+        base_url: https://api.internal.example.com
+        timeout: 60s
+        headers:
+          X-API-Version: "2024-01"
+        auth:
+          basic:
+            username: ${API_USERNAME}
+            password: ${API_PASSWORD}
+  steps:
+    - id: users
+      http_get:
+        collector: jsonplaceholder
+        path: /users
+    - id: posts
+      http_get:
+        collector: jsonplaceholder
+        path: /posts
+        params:
+          userId: "1"
+    - id: resources
+      http_get:
+        collector: internal-api
+        path: /api/v1/resources
+        headers:
+          Accept: application/json
+        response_type: json
+```
+
+### Mixed Collectors Example
+
+```yaml
+kind: CollectJob
+metadata:
+  name: hybrid-collection
+  description: Collect from both Terraform providers and HTTP APIs
+spec:
+  collectors:
+    - id: k8s
+      terraform:
+        provider: hashicorp/kubernetes
+        args:
+          config_path: ~/.kube/config
+    - id: monitoring-api
+      http:
+        base_url: https://monitoring.example.com/api
+        auth:
+          basic:
+            encoded: ${MONITORING_API_TOKEN}
+  steps:
+    - id: deployments
+      terraform_datasource:
+        name: kubernetes_resources
+        collector: k8s
+        args:
+          api_version: apps/v1
+          kind: Deployment
+    - id: alerts
+      http_get:
+        collector: monitoring-api
+        path: /v1/alerts
+        params:
+          status: active
 ```
 
 ### Output Configuration Examples

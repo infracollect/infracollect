@@ -14,7 +14,8 @@ type CollectJobSpec struct {
 
 type Collector struct {
 	ID        string              `yaml:"id" json:"id"`
-	Terraform *TerraformCollector `yaml:"terraform" json:"terraform"`
+	Terraform *TerraformCollector `yaml:"terraform,omitempty" json:"terraform,omitempty"`
+	HTTP      *HTTPCollector      `yaml:"http,omitempty" json:"http,omitempty"`
 }
 
 type TerraformCollector struct {
@@ -25,13 +26,40 @@ type TerraformCollector struct {
 
 type Step struct {
 	ID                  string                   `yaml:"id" json:"id"`
-	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource" json:"terraform_datasource"`
+	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet"`
+	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource"`
 }
 
 type TerraformDataSourceStep struct {
 	Name      string         `yaml:"name" json:"name"`
 	Collector string         `yaml:"collector" json:"collector"`
 	Args      map[string]any `yaml:"args" json:"args"`
+}
+
+type HTTPCollector struct {
+	BaseURL  string            `yaml:"base_url" json:"base_url"`
+	Headers  map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Auth     *HTTPAuth         `yaml:"auth,omitempty" json:"auth,omitempty"`
+	Timeout  *int              `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	Insecure bool              `yaml:"insecure,omitempty" json:"insecure,omitempty"`
+}
+
+type HTTPAuth struct {
+	Basic *HTTPBasicAuth `yaml:"basic,omitempty" json:"basic,omitempty"`
+}
+
+type HTTPBasicAuth struct {
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+	Password string `yaml:"password,omitempty" json:"password,omitempty"`
+	Encoded  string `yaml:"encoded,omitempty" json:"encoded,omitempty"`
+}
+
+type HTTPGetStep struct {
+	Collector    string            `yaml:"collector" json:"collector"`
+	Path         string            `yaml:"path" json:"path"`
+	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Params       map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+	ResponseType string            `yaml:"response_type,omitempty" json:"response_type,omitempty"`
 }
 
 // OutputSpec configures how results are written.

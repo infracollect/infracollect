@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v1 "github.com/adrien-f/infracollect/apis/v1"
+	httpCollector "github.com/adrien-f/infracollect/pkg/collectors/http"
 	"github.com/adrien-f/infracollect/pkg/collectors/terraform"
 	"github.com/adrien-f/infracollect/pkg/engine"
 	"github.com/adrien-f/infracollect/pkg/engine/encoders"
@@ -43,6 +44,34 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 			}
 
 			logger.Info("created terraform collector", zap.String("collector_id", collectorSpec.ID))
+		} else if collectorSpec.HTTP != nil {
+			httpCfg := httpCollector.Config{
+				BaseURL: collectorSpec.HTTP.BaseURL,
+				Headers: collectorSpec.HTTP.Headers,
+			}
+			if collectorSpec.HTTP.Timeout != nil {
+				httpCfg.Timeout = time.Duration(*collectorSpec.HTTP.Timeout) * time.Second
+			}
+			if collectorSpec.HTTP.Auth != nil && collectorSpec.HTTP.Auth.Basic != nil {
+				httpCfg.Auth = &httpCollector.AuthConfig{
+					Basic: &httpCollector.BasicAuthConfig{
+						Username: collectorSpec.HTTP.Auth.Basic.Username,
+						Password: collectorSpec.HTTP.Auth.Basic.Password,
+						Encoded:  collectorSpec.HTTP.Auth.Basic.Encoded,
+					},
+				}
+			}
+
+			collector, err := httpCollector.NewCollector(httpCfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create http collector: %w", err)
+			}
+
+			if err := pipeline.AddCollector(collectorSpec.ID, collector); err != nil {
+				return nil, fmt.Errorf("failed to add http collector: %w", err)
+			}
+
+			logger.Info("created http collector", zap.String("collector_id", collectorSpec.ID))
 		} else {
 			logger.Error("unknown collector type", zap.String("collector_id", collectorSpec.ID))
 			return nil, fmt.Errorf("unknown collector type: %s", collectorSpec.ID)
@@ -71,6 +100,32 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 			}
 
 			logger.Info("created terraform data source step", zap.String("step_id", stepSpec.ID))
+		} else if stepSpec.HTTPGet != nil {
+			collector, ok := pipeline.GetCollector(stepSpec.HTTPGet.Collector)
+			if !ok {
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s not found", stepSpec.ID, stepSpec.HTTPGet.Collector)
+			}
+
+			httpColl, ok := collector.(*httpCollector.Collector)
+			if !ok {
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not an http collector", stepSpec.ID, stepSpec.HTTPGet.Collector)
+			}
+
+			step, err := httpCollector.NewGetStep(httpColl, httpCollector.GetConfig{
+				Path:         stepSpec.HTTPGet.Path,
+				Headers:      stepSpec.HTTPGet.Headers,
+				Params:       stepSpec.HTTPGet.Params,
+				ResponseType: stepSpec.HTTPGet.ResponseType,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create http get step: %w", err)
+			}
+
+			if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
+				return nil, fmt.Errorf("failed to add http get step: %w", err)
+			}
+
+			logger.Info("created http get step", zap.String("step_id", stepSpec.ID))
 		} else {
 			logger.Error("unknown step type", zap.String("step_id", stepSpec.ID))
 			return nil, fmt.Errorf("unknown step type: %s", stepSpec.ID)
