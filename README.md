@@ -1,17 +1,15 @@
 # infracollect
 
-infracollect is a tool for collecting infrastructure and cloud resources using the vast ecosystem of Terraform providers through OpenTofu.
+**Collect infrastructure data from anywhere** — cloud providers, Kubernetes clusters, REST APIs — all with simple YAML configuration.
 
-## Overview
+infracollect lets you query and export data from your infrastructure using declarative job definitions. It leverages the entire Terraform provider ecosystem without requiring the Terraform CLI, and supports HTTP APIs for maximum flexibility.
 
-infracollect allows you to define collection jobs in YAML that specify which Terraform providers to use and what resources to collect. It leverages the `tf-data-client` library to directly run Terraform providers and execute data source queries.
+## Why infracollect?
 
-## Features
-
-- **Provider-Agnostic**: Works with any Terraform provider
-- **Declarative Configuration**: Define collection jobs in simple YAML
-- **Multi-Collector Support**: Use multiple collectors with different providers/configurations in a single job
-- **Direct Provider Execution**: Uses `tf-data-client` library to run Terraform providers directly (no CLI needed)
+- **No Terraform CLI required** — Runs providers directly as Go libraries
+- **Multi-source collection** — Combine data from AWS, Azure, GCP, Kubernetes, and REST APIs in a single job
+- **Declarative YAML** — Define what to collect, not how to collect it
+- **Flexible output** — Write to stdout, local files, or S3-compatible storage
 
 ## Quick Start
 
@@ -21,57 +19,187 @@ infracollect allows you to define collection jobs in YAML that specify which Ter
 go install github.com/adrien-f/infracollect/cmd/infracollect@latest
 ```
 
-### Example Job
+### Your First Collection Job
 
-Create a file `job.yaml`:
+Create a file called `job.yaml`:
 
 ```yaml
 kind: CollectJob
 metadata:
-  name: k8s-deployments
+  name: my-first-job
 spec:
   collectors:
-    - id: kind
+    - id: k8s
       terraform:
         provider: hashicorp/kubernetes
-        version: v2.32.0
         args:
-          config_path: ./kubeconfig
-          config_context: kind-kind
+          config_path: ~/.kube/config
+
   steps:
     - id: deployments
+      collector: k8s
       terraform_datasource:
         name: kubernetes_resources
-        collector: kind
         args:
           api_version: apps/v1
           kind: Deployment
-          namespace: kube-system
+          namespace: default
 ```
 
-### Run
+Run it:
 
 ```bash
 infracollect collect job.yaml
 ```
 
+The collected data is printed to stdout as JSON.
+
+## Examples
+
+### Collect from a REST API
+
+```yaml
+kind: CollectJob
+metadata:
+  name: api-data
+spec:
+  collectors:
+    - id: api
+      http:
+        base_url: https://api.example.com
+        auth:
+          basic:
+            username: ${API_USER}
+            password: ${API_PASSWORD}
+
+  steps:
+    - id: users
+      collector: api
+      http_get:
+        path: /users
+
+    - id: orders
+      collector: api
+      http_get:
+        path: /orders
+        params:
+          status: active
+```
+
+### Multi-Cloud Inventory
+
+Collect resources from multiple cloud providers in a single job:
+
+```yaml
+kind: CollectJob
+metadata:
+  name: multi-cloud
+spec:
+  collectors:
+    - id: aws
+      terraform:
+        provider: hashicorp/aws
+        args:
+          region: us-east-1
+
+    - id: azure
+      terraform:
+        provider: hashicorp/azurerm
+        args:
+          subscription_id: ${AZURE_SUBSCRIPTION_ID}
+          tenant_id: ${AZURE_TENANT_ID}
+
+  steps:
+    - id: ec2-instances
+      collector: aws
+      terraform_datasource:
+        name: aws_instances
+        args: {}
+
+    - id: azure-vms
+      collector: azure
+      terraform_datasource:
+        name: azurerm_virtual_machines
+        args:
+          resource_group_name: production
+```
+
+### Save Output to Files
+
+Write results to local files, organized by job name and timestamp:
+
+```yaml
+spec:
+  # ... collectors and steps ...
+
+  output:
+    encoding:
+      json:
+        indent: "  "  # Pretty-print the JSON
+    sink:
+      filesystem:
+        path: ./output
+        prefix: $JOB_NAME/$JOB_DATE_ISO8601
+```
+
+This creates files like `./output/my-job/20260123T120000Z/deployments.json`.
+
+### Export to S3
+
+Write results directly to S3, R2, or MinIO:
+
+```yaml
+spec:
+  # ... collectors and steps ...
+
+  output:
+    sink:
+      s3:
+        bucket: my-exports-bucket
+        region: us-west-2
+        prefix: infracollect/$JOB_NAME/$JOB_DATE_ISO8601
+```
+
+## Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **CollectJob** | A YAML file defining what data to collect and where to send it |
+| **Collector** | A data source configuration (Terraform provider or HTTP client) |
+| **Step** | A single data collection operation using a collector |
+| **Output** | Where and how to write collected data (stdout, filesystem, S3) |
+
+## Supported Collectors
+
+### Terraform Providers
+
+Use any Terraform provider to collect infrastructure data:
+
+- **AWS** (`hashicorp/aws`) — EC2, S3, RDS, Lambda, etc.
+- **Azure** (`hashicorp/azurerm`) — VMs, Storage, AKS, etc.
+- **GCP** (`hashicorp/google`) — Compute, GKE, Cloud Storage, etc.
+- **Kubernetes** (`hashicorp/kubernetes`) — Pods, Deployments, Services, etc.
+- **And many more** — Any Terraform provider with data sources works
+
+### HTTP
+
+Query any REST API with built-in support for:
+- Basic authentication
+- Custom headers
+- Query parameters
+- JSON or raw response parsing
+
 ## Documentation
 
-- **[Design](docs/DESIGN.md)**: Project goals, design principles, and core concepts
-- **[Architecture](docs/ARCHITECTURE.md)**: System architecture and component breakdown
-- **[Job Specification](docs/COLLECT_PIPELINE_SPEC.md)**: Complete YAML schema reference
-- **[Agent Guidelines](AGENTS.md)**: Code style and implementation guidelines
-
-## How It Works
-
-infracollect uses the `tf-data-client` library to directly run Terraform providers as Go libraries, without needing the Terraform or OpenTofu CLI. This provides:
-- Direct integration with Terraform providers
-- No need for HCL generation or CLI subprocess execution
-- Efficient provider lifecycle management
+| Document | Description |
+|----------|-------------|
+| [Job Specification](docs/COLLECT_PIPELINE_SPEC.md) | Complete YAML schema reference |
+| [Design](docs/DESIGN.md) | Architecture and design decisions |
+| [Architecture](docs/ARCHITECTURE.md) | System components |
 
 ## Project Status
 
-This project is in early development. The core architecture and interfaces are being established.
+infracollect is in **early development**. The core functionality works, but APIs may change. Feedback and contributions are welcome.
 
 ## Contributing
 
