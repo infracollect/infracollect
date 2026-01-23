@@ -70,5 +70,3 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 )
-
-replace github.com/adrien-f/tf-data-client => ../tf-data-client
