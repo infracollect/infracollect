@@ -1,3 +1,5 @@
+github.com/adrien-f/tf-data-client v0.0.0-20260123185311-c77646c9d63e h1:Z692R9JQtB6I/BLUpi1wUEFvGJBrL46/71G2e5tFTiY=
+github.com/adrien-f/tf-data-client v0.0.0-20260123185311-c77646c9d63e/go.mod h1:6kLfQKVcPUzGJuQlHLXPxueJYdeah0yxTsh2dryoOCk=
 github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew1u1fNQOlOtuGxQY=
 github.com/apparentlymart/go-textseg/v15 v15.0.0/go.mod h1:K8XmNZdhEBkdlyDdvbmmsvpAG721bKi0joRfFdHIWJ4=
 github.com/aws/aws-sdk-go-v2 v1.41.1 h1:ABlyEARCDLN034NhxlRUSZr4l71mh+T5KAeGh6cerhU=
