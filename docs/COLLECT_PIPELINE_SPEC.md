@@ -59,7 +59,16 @@ spec:
       stdout?: {}        # Optional: Write to stdout (one result per line)
       filesystem?:       # Optional: Write to filesystem (one file per step)
         path?: string    # Optional: Directory path (default: current directory)
-        prefix?: string  # Optional: Prefix for output directory (supports $JOB_NAME, $JOB_DATE_RFC3339)
+        prefix?: string  # Optional: Prefix for output directory (supports $JOB_NAME, $JOB_DATE_ISO8601, $JOB_DATE_RFC3339)
+      s3?:               # Optional: Write to S3-compatible storage (AWS S3, R2, MinIO)
+        bucket: string   # Required: S3 bucket name
+        region?: string  # Optional: AWS region
+        endpoint?: string  # Optional: Custom endpoint for S3-compatible services
+        prefix?: string  # Optional: Object key prefix (supports $JOB_NAME, $JOB_DATE_ISO8601, $JOB_DATE_RFC3339)
+        force_path_style?: boolean  # Optional: Use path-style addressing (for MinIO)
+        credentials?:    # Optional: Explicit credentials (uses SDK chain if not specified)
+          access_key_id: string
+          secret_access_key: string
 ```
 
 ## Field Descriptions
@@ -161,10 +170,67 @@ spec:
 - **Description**: Prefix prepended to the path, useful for organizing outputs by job name and date
 - **Variables**: Supports variable substitution:
   - `$JOB_NAME`: Replaced with the job's `metadata.name`
+  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) - **recommended**
   - `$JOB_DATE_RFC3339`: Replaced with current UTC time in RFC3339 format (e.g., `2026-01-19T08:18:15Z`)
 - **Examples**:
-  - `prefix: $JOB_NAME/$JOB_DATE_RFC3339` → `test/2026-01-19T08:18:15Z/`
+  - `prefix: $JOB_NAME/$JOB_DATE_ISO8601` → `test/20260119T081815Z/`
   - `prefix: outputs` → `outputs/`
+
+##### `spec.output.sink.s3` (optional)
+- **Type**: `object`
+- **Description**: Write output to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, etc.)
+- **File Naming**: Each step's output is written as an object with key `{prefix}/{step-id}.{extension}` (e.g., `exports/deployments.json`)
+- **Credentials**: Uses AWS SDK credential chain by default (env vars, shared credentials file, IAM role). Explicit credentials can be provided via the `credentials` field.
+
+##### `spec.output.sink.s3.bucket` (required)
+- **Type**: `string`
+- **Description**: S3 bucket name
+- **Examples**: `my-bucket`, `infracollect-exports`
+
+##### `spec.output.sink.s3.region` (optional)
+- **Type**: `string`
+- **Description**: AWS region for the bucket
+- **Default**: Uses SDK defaults (AWS_REGION env var, config file, or auto-detection)
+- **Examples**: `us-east-1`, `eu-west-1`
+
+##### `spec.output.sink.s3.endpoint` (optional)
+- **Type**: `string`
+- **Description**: Custom endpoint URL for S3-compatible services
+- **Note**: Required for Cloudflare R2, MinIO, and other non-AWS services
+- **Examples**:
+  - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+  - MinIO: `http://localhost:9000`
+
+##### `spec.output.sink.s3.prefix` (optional)
+- **Type**: `string`
+- **Description**: Prefix prepended to object keys, useful for organizing outputs
+- **Variables**: Supports variable substitution:
+  - `$JOB_NAME`: Replaced with the job's `metadata.name`
+  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) - **recommended**
+  - `$JOB_DATE_RFC3339`: Replaced with current UTC time in RFC3339 format (e.g., `2026-01-19T08:18:15Z`)
+- **Note**: `$JOB_DATE_ISO8601` is recommended for S3 keys because RFC3339 contains colons (`:`) which require URL encoding
+- **Examples**:
+  - `prefix: $JOB_NAME/$JOB_DATE_ISO8601` → `my-job/20260119T081815Z/`
+  - `prefix: exports` → `exports/`
+
+##### `spec.output.sink.s3.force_path_style` (optional)
+- **Type**: `boolean`
+- **Description**: Use path-style addressing instead of virtual-hosted-style
+- **Default**: `false`
+- **Note**: Required for MinIO and some S3-compatible services that don't support virtual-hosted-style URLs
+
+##### `spec.output.sink.s3.credentials` (optional)
+- **Type**: `object`
+- **Description**: Explicit AWS credentials
+- **Note**: If not specified, uses the AWS SDK credential chain (environment variables, shared credentials file, IAM role)
+
+##### `spec.output.sink.s3.credentials.access_key_id` (required when credentials is specified)
+- **Type**: `string`
+- **Description**: AWS access key ID
+
+##### `spec.output.sink.s3.credentials.secret_access_key` (required when credentials is specified)
+- **Type**: `string`
+- **Description**: AWS secret access key
 
 ### Collector Specification
 
@@ -634,6 +700,94 @@ spec:
   # output not specified - defaults to compact JSON to stdout
 ```
 
+#### S3 Sink - AWS S3
+
+Using AWS S3 with environment/IAM credentials:
+
+```yaml
+kind: CollectJob
+metadata:
+  name: aws-inventory
+spec:
+  collectors:
+    - id: aws
+      terraform:
+        provider: hashicorp/aws
+        args:
+          region: us-east-1
+  steps:
+    - id: instances
+      collector: aws
+      terraform_datasource:
+        name: aws_instances
+        args: {}
+  output:
+    sink:
+      s3:
+        bucket: my-infracollect-bucket
+        region: us-west-2
+        prefix: $JOB_NAME/$JOB_DATE_ISO8601
+```
+
+#### S3 Sink - Cloudflare R2
+
+```yaml
+kind: CollectJob
+metadata:
+  name: r2-export
+spec:
+  collectors:
+    - id: api
+      http:
+        base_url: https://api.example.com
+  steps:
+    - id: data
+      collector: api
+      http_get:
+        path: /data
+  output:
+    sink:
+      s3:
+        bucket: my-r2-bucket
+        endpoint: https://ACCOUNT_ID.r2.cloudflarestorage.com
+        prefix: exports/$JOB_NAME
+        credentials:
+          access_key_id: ${R2_ACCESS_KEY_ID}
+          secret_access_key: ${R2_SECRET_ACCESS_KEY}
+```
+
+#### S3 Sink - MinIO
+
+```yaml
+kind: CollectJob
+metadata:
+  name: local-export
+spec:
+  collectors:
+    - id: k8s
+      terraform:
+        provider: hashicorp/kubernetes
+        args:
+          config_path: ~/.kube/config
+  steps:
+    - id: deployments
+      collector: k8s
+      terraform_datasource:
+        name: kubernetes_resources
+        args:
+          api_version: apps/v1
+          kind: Deployment
+  output:
+    sink:
+      s3:
+        bucket: local-bucket
+        endpoint: http://localhost:9000
+        force_path_style: true
+        credentials:
+          access_key_id: minioadmin
+          secret_access_key: minioadmin
+```
+
 ## Provider-Specific Notes
 
 ### Kubernetes Provider
@@ -674,6 +828,7 @@ Provider arguments can reference environment variables using `${VARIABLE_NAME}` 
 5. **Documentation**: Add descriptions to complex pipelines
 6. **Validation**: Validate pipelines before execution
 7. **Output Format**: Use pretty-printed JSON (`indent: "  "`) for human-readable output, compact JSON for machine processing
-8. **Output Destination**: Use `filesystem` for local development and debugging, `stdout` for piping to other tools or streaming results
-9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_RFC3339` variables to organize outputs by job and timestamp
+8. **Output Destination**: Use `filesystem` for local development and debugging, `stdout` for piping to other tools or streaming results, `s3` for cloud storage
+9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_ISO8601` variables to organize outputs by job and timestamp. Prefer `$JOB_DATE_ISO8601` over `$JOB_DATE_RFC3339` as it avoids colons which require URL encoding
 10. **Result Structure**: Each result includes an `id` field identifying the step that produced it, along with the `data` field containing the actual result data
+11. **S3 Credentials**: For AWS S3, prefer using IAM roles or environment variables over explicit credentials in the job file. Use explicit credentials only for non-AWS S3-compatible services (R2, MinIO)

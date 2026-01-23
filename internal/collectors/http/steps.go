@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/adrien-f/infracollect/pkg/engine"
+	"github.com/adrien-f/infracollect/internal/engine"
 )
 
 const (

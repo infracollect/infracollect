@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // StepEntry holds a step with its ID for ordered execution.
@@ -13,6 +14,7 @@ type StepEntry struct {
 
 type Pipeline struct {
 	name       string
+	date       time.Time
 	collectors map[string]Collector
 	steps      []StepEntry
 }
@@ -20,6 +22,7 @@ type Pipeline struct {
 func NewPipeline(name string) *Pipeline {
 	return &Pipeline{
 		name:       name,
+		date:       time.Now().UTC(),
 		collectors: make(map[string]Collector),
 		steps:      nil,
 	}
@@ -43,6 +46,10 @@ func (p *Pipeline) AddStep(id string, step Step) error {
 
 	p.steps = append(p.steps, StepEntry{ID: id, Step: step})
 	return nil
+}
+
+func (p *Pipeline) Date() time.Time {
+	return p.date
 }
 
 func (p *Pipeline) Collectors() map[string]Collector {

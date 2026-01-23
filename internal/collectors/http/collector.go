@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/adrien-f/infracollect/pkg/engine"
+	"github.com/adrien-f/infracollect/internal/engine"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/samber/lo"
 )

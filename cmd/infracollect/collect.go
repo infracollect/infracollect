@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adrien-f/infracollect/pkg/runner"
+	"github.com/adrien-f/infracollect/internal/runner"
 	"github.com/urfave/cli/v3"
 )
 
@@ -36,7 +36,7 @@ var collectCommand = &cli.Command{
 			return fmt.Errorf("failed to parse job: %w", err)
 		}
 
-		r, err := runner.New(logger.Named("runner"), job)
+		r, err := runner.New(ctx, logger.Named("runner"), job)
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}

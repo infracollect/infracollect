@@ -96,10 +96,13 @@ type JSONEncodingSpec struct {
 // If none is set, defaults based on mode: stdout for stream, filesystem for files.
 type SinkSpec struct {
 	// Stdout writes to standard output.
-	Stdout *StdoutSinkSpec `yaml:"stdout,omitempty" json:"stdout,omitempty" validate:"excluded_with=Filesystem"`
+	Stdout *StdoutSinkSpec `yaml:"stdout,omitempty" json:"stdout,omitempty" validate:"excluded_with=Filesystem S3"`
 
 	// Filesystem writes to files on the local filesystem.
-	Filesystem *FilesystemSinkSpec `yaml:"filesystem,omitempty" json:"filesystem,omitempty" validate:"excluded_with=Stdout"`
+	Filesystem *FilesystemSinkSpec `yaml:"filesystem,omitempty" json:"filesystem,omitempty" validate:"excluded_with=Stdout S3"`
+
+	// S3 writes to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO).
+	S3 *S3SinkSpec `yaml:"s3,omitempty" json:"s3,omitempty" validate:"excluded_with=Stdout Filesystem"`
 }
 
 // StdoutSinkSpec configures stdout output.
@@ -114,6 +117,44 @@ type FilesystemSinkSpec struct {
 
 	// Prefix is prepended to filenames. Supports variables:
 	//   - $JOB_NAME: The job's metadata.name
-	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format
+	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z) - recommended
+	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
 	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+}
+
+// S3SinkSpec configures S3-compatible object storage output.
+// Supports AWS S3, Cloudflare R2, MinIO, and other S3-compatible services.
+type S3SinkSpec struct {
+	// Bucket is the S3 bucket name.
+	Bucket string `yaml:"bucket" json:"bucket" validate:"required"`
+
+	// Region is the AWS region (optional, uses SDK defaults if not specified).
+	Region *string `yaml:"region,omitempty" json:"region,omitempty"`
+
+	// Endpoint is a custom endpoint URL for S3-compatible services (e.g., R2, MinIO).
+	Endpoint *string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+
+	// Prefix is prepended to object keys. Supports variables:
+	//   - $JOB_NAME: The job's metadata.name
+	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z) - recommended
+	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
+	//
+	// Note: $JOB_DATE_ISO8601 is recommended for S3 keys as RFC3339 contains colons
+	// which require URL encoding.
+	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+
+	// Credentials provides explicit credentials (optional, uses SDK credential chain if not specified).
+	Credentials *S3Credentials `yaml:"credentials,omitempty" json:"credentials,omitempty"`
+
+	// ForcePathStyle forces path-style addressing (required for MinIO and some S3-compatible services).
+	ForcePathStyle bool `yaml:"force_path_style,omitempty" json:"force_path_style,omitempty"`
+}
+
+// S3Credentials provides explicit S3 credentials.
+type S3Credentials struct {
+	// AccessKeyID is the AWS access key ID.
+	AccessKeyID string `yaml:"access_key_id" json:"access_key_id" validate:"required"`
+
+	// SecretAccessKey is the AWS secret access key.
+	SecretAccessKey string `yaml:"secret_access_key" json:"secret_access_key" validate:"required"`
 }
