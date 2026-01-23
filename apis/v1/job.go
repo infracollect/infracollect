@@ -26,14 +26,16 @@ type TerraformCollector struct {
 
 type Step struct {
 	ID                  string                   `yaml:"id" json:"id"`
+	Collector           string                   `yaml:"collector" json:"collector"`
 	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet"`
 	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource"`
 }
 
+// TerraformDataSourceStep is a step that uses a Terraform provider's data source.
 type TerraformDataSourceStep struct {
-	Name      string         `yaml:"name" json:"name"`
-	Collector string         `yaml:"collector" json:"collector"`
-	Args      map[string]any `yaml:"args" json:"args"`
+	// Name of the provider data source to use.
+	Name string         `yaml:"name" json:"name"`
+	Args map[string]any `yaml:"args" json:"args"`
 }
 
 type HTTPCollector struct {
@@ -55,11 +57,10 @@ type HTTPBasicAuth struct {
 }
 
 type HTTPGetStep struct {
-	Collector    string            `yaml:"collector" json:"collector"`
 	Path         string            `yaml:"path" json:"path"`
 	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
 	Params       map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
-	ResponseType string            `yaml:"response_type,omitempty" json:"response_type,omitempty"`
+	ResponseType string            `yaml:"response_type,omitempty" json:"response_type,omitempty" validate:"oneof=json raw"`
 }
 
 // OutputSpec configures how results are written.

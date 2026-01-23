@@ -15,16 +15,16 @@ spec:
         base_url: https://jsonplaceholder.typicode.com
   steps:
     - id: deployments
+      collector: kind
       terraform_datasource:
         name: kubernetes_resources
-        collector: kind
         args:
           api_version: apps/v1
           kind: Deployment
           namespace: kube-system
     - id: users
+      collector: api
       http_get:
-        collector: api
         path: /users
         response_type: json
 
@@ -32,7 +32,7 @@ spec:
     encoding:
       json:
         indent: "  "
-    # sink:
-    #   filesystem:
-    #     path: ./output
-    #     prefix: $JOB_NAME/$JOB_DATE_RFC3339
+    sink:
+      filesystem:
+        path: ./output
+        prefix: $JOB_NAME/$JOB_DATE_RFC3339

@@ -41,13 +41,12 @@ spec:
             encoded?: string  # Base64-encoded credentials
   steps:                # Required: List of collection steps
     - id: string        # Required: Unique step identifier
+      collector: string # Required: Collector ID to use
       # One of the following step types:
       terraform_datasource:
         name: string        # Required: Terraform data source name
-        collector: string   # Required: Collector ID to use
         args: object        # Required: Data source arguments
       http_get:
-        collector: string   # Required: HTTP collector ID to use
         path: string        # Required: Request path (appended to base_url)
         headers?: object    # Optional: Request-specific headers
         params?: object     # Optional: Query parameters
@@ -245,7 +244,12 @@ spec:
 - **Description**: Unique identifier for the step
 - **Constraints**: Must be unique within the pipeline
 
-#### `steps[].terraform_datasource` (required)
+#### `steps[].collector` (required)
+- **Type**: `string`
+- **Description**: ID of the collector to use for this step
+- **Constraints**: Must reference a collector ID defined in `spec.collectors` of the matching type
+
+#### `steps[].terraform_datasource` (optional)
 - **Type**: `object`
 - **Description**: Terraform data source configuration
 
@@ -257,11 +261,6 @@ spec:
   - `aws_instances`
   - `azurerm_resources`
 
-##### `steps[].terraform_datasource.collector` (required)
-- **Type**: `string`
-- **Description**: ID of the collector to use for this step
-- **Constraints**: Must reference a collector ID defined in `spec.collectors`
-
 ##### `steps[].terraform_datasource.args` (required)
 - **Type**: `object`
 - **Description**: Data source-specific arguments
@@ -271,11 +270,6 @@ spec:
 - **Type**: `object`
 - **Description**: HTTP GET request step configuration
 - **Note**: Mutually exclusive with `terraform_datasource`
-
-##### `steps[].http_get.collector` (required)
-- **Type**: `string`
-- **Description**: ID of the HTTP collector to use for this step
-- **Constraints**: Must reference an HTTP collector ID defined in `spec.collectors`
 
 ##### `steps[].http_get.path` (required)
 - **Type**: `string`
@@ -340,17 +334,17 @@ spec:
           config_context: kind-kind
   steps:
     - id: deployments
+      collector: kind
       terraform_datasource:
         name: kubernetes_resources
-        collector: kind
         args:
           api_version: apps/v1
           kind: Deployment
           namespace: kube-system
     - id: pods
+      collector: kind
       terraform_datasource:
         name: kubernetes_resources
-        collector: kind
         args:
           api_version: v1
           kind: Pod
@@ -393,25 +387,25 @@ spec:
           tenant_id: ${AZURE_TENANT_ID}
   steps:
     - id: aws-east-instances
+      collector: aws-us-east-1
       terraform_datasource:
         name: aws_instances
-        collector: aws-us-east-1
         args:
           filters:
             - name: instance-state-name
               values: [running]
     - id: aws-west-instances
+      collector: aws-us-west-2
       terraform_datasource:
         name: aws_instances
-        collector: aws-us-west-2
         args:
           filters:
             - name: instance-state-name
               values: [running]
     - id: azure-vms
+      collector: azure
       terraform_datasource:
         name: azurerm_virtual_machines
-        collector: azure
         args:
           resource_group_name: production
 ```
@@ -431,9 +425,9 @@ spec:
           region: us-east-1
   steps:
     - id: ec2-instances
+      collector: aws-prod
       terraform_datasource:
         name: aws_instances
-        collector: aws-prod
         args:
           filters:
             - name: tag:Environment
@@ -464,18 +458,18 @@ spec:
             password: ${API_PASSWORD}
   steps:
     - id: users
+      collector: jsonplaceholder
       http_get:
-        collector: jsonplaceholder
         path: /users
     - id: posts
+      collector: jsonplaceholder
       http_get:
-        collector: jsonplaceholder
         path: /posts
         params:
           userId: "1"
     - id: resources
+      collector: internal-api
       http_get:
-        collector: internal-api
         path: /api/v1/resources
         headers:
           Accept: application/json
@@ -504,15 +498,15 @@ spec:
             encoded: ${MONITORING_API_TOKEN}
   steps:
     - id: deployments
+      collector: k8s
       terraform_datasource:
         name: kubernetes_resources
-        collector: k8s
         args:
           api_version: apps/v1
           kind: Deployment
     - id: alerts
+      collector: monitoring-api
       http_get:
-        collector: monitoring-api
         path: /v1/alerts
         params:
           status: active
@@ -535,9 +529,9 @@ spec:
           config_path: ./kubeconfig
   steps:
     - id: deployments
+      collector: kind
       terraform_datasource:
         name: kubernetes_resources
-        collector: kind
         args:
           api_version: apps/v1
           kind: Deployment
@@ -564,9 +558,9 @@ spec:
           region: us-east-1
   steps:
     - id: ec2-instances
+      collector: aws-prod
       terraform_datasource:
         name: aws_instances
-        collector: aws-prod
         args: {}
   output:
     encoding:
@@ -597,14 +591,14 @@ spec:
           subscription_id: ${AZURE_SUBSCRIPTION_ID}
   steps:
     - id: aws-instances
+      collector: aws
       terraform_datasource:
         name: aws_instances
-        collector: aws
         args: {}
     - id: azure-vms
+      collector: azure
       terraform_datasource:
         name: azurerm_virtual_machines
-        collector: azure
         args: {}
   output:
     encoding:
@@ -633,9 +627,9 @@ spec:
           region: us-east-1
   steps:
     - id: instances
+      collector: aws
       terraform_datasource:
         name: aws_instances
-        collector: aws
         args: {}
   # output not specified - defaults to compact JSON to stdout
 ```

@@ -80,14 +80,14 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 
 	for _, stepSpec := range spec.Steps {
 		if stepSpec.TerraformDataSource != nil {
-			collector, ok := pipeline.GetCollector(stepSpec.TerraformDataSource.Collector)
+			collector, ok := pipeline.GetCollector(stepSpec.Collector)
 			if !ok {
-				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s not found", stepSpec.ID, stepSpec.TerraformDataSource.Collector)
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s not found", stepSpec.ID, stepSpec.Collector)
 			}
 
 			tfcollector, ok := collector.(*terraform.Collector)
 			if !ok {
-				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not a terraform collector", stepSpec.ID, stepSpec.TerraformDataSource.Collector)
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not a terraform collector", stepSpec.ID, stepSpec.Collector)
 			}
 
 			step, err := terraform.NewDataSourceStep(tfcollector, stepSpec.TerraformDataSource.Name, stepSpec.TerraformDataSource.Args)
@@ -101,14 +101,14 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 
 			logger.Info("created terraform data source step", zap.String("step_id", stepSpec.ID))
 		} else if stepSpec.HTTPGet != nil {
-			collector, ok := pipeline.GetCollector(stepSpec.HTTPGet.Collector)
+			collector, ok := pipeline.GetCollector(stepSpec.Collector)
 			if !ok {
-				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s not found", stepSpec.ID, stepSpec.HTTPGet.Collector)
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s not found", stepSpec.ID, stepSpec.Collector)
 			}
 
 			httpColl, ok := collector.(*httpCollector.Collector)
 			if !ok {
-				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not an http collector", stepSpec.ID, stepSpec.HTTPGet.Collector)
+				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not an http collector", stepSpec.ID, stepSpec.Collector)
 			}
 
 			step, err := httpCollector.NewGetStep(httpColl, httpCollector.GetConfig{
