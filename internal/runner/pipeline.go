@@ -91,11 +91,7 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 				return nil, fmt.Errorf("step %s has invalid collector reference: collector %s is not a terraform collector", stepSpec.ID, stepSpec.Collector)
 			}
 
-			step, err := terraform.NewDataSourceStep(tfcollector, stepSpec.TerraformDataSource.Name, stepSpec.TerraformDataSource.Args)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create terraform data source step: %w", err)
-			}
-
+			step := terraform.NewDataSourceStep(tfcollector, stepSpec.TerraformDataSource.Name, stepSpec.TerraformDataSource.Args)
 			if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
 				return nil, fmt.Errorf("failed to add terraform data source step: %w", err)
 			}

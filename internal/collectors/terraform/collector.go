@@ -14,6 +14,12 @@ const (
 	CollectorKind = "terraform"
 )
 
+// Client is an interface for creating and managing Terraform providers.
+type Client interface {
+	CreateProvider(ctx context.Context, config tfclient.ProviderConfig) (tfclient.Provider, error)
+	StopProvider(ctx context.Context, config tfclient.ProviderConfig) error
+}
+
 type Config struct {
 	Provider string
 	Version  string
@@ -22,12 +28,12 @@ type Config struct {
 
 type Collector struct {
 	providerConfig tfclient.ProviderConfig
-	provider       *tfclient.Provider
+	provider       tfclient.Provider
 	args           map[string]any
-	client         *tfclient.Client
+	client         Client
 }
 
-func NewCollector(client *tfclient.Client, cfg Config) (engine.Collector, error) {
+func NewCollector(client Client, cfg Config) (engine.Collector, error) {
 	provider, err := tfaddr.ParseProviderSource(cfg.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider source '%s': %w", cfg.Provider, err)

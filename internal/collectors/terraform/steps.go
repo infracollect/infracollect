@@ -17,8 +17,8 @@ type dataSourceStep struct {
 	args      map[string]any
 }
 
-func NewDataSourceStep(collector *Collector, name string, args map[string]any) (engine.Step, error) {
-	return &dataSourceStep{collector: collector, name: name, args: args}, nil
+func NewDataSourceStep(collector *Collector, name string, args map[string]any) engine.Step {
+	return &dataSourceStep{collector: collector, name: name, args: args}
 }
 
 func (s *dataSourceStep) Name() string {
