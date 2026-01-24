@@ -7,8 +7,8 @@ type CollectJob struct {
 }
 
 type CollectJobSpec struct {
-	Collectors []Collector `yaml:"collectors" json:"collectors"`
-	Steps      []Step      `yaml:"steps" json:"steps"`
+	Collectors []Collector `yaml:"collectors" json:"collectors" validate:"dive"`
+	Steps      []Step      `yaml:"steps" json:"steps" validate:"dive"`
 	Output     *OutputSpec `yaml:"output,omitempty" json:"output,omitempty"`
 }
 
@@ -26,7 +26,7 @@ type TerraformCollector struct {
 
 type Step struct {
 	ID                  string                   `yaml:"id" json:"id"`
-	Collector           string                   `yaml:"collector" json:"collector"`
+	Collector           *string                  `yaml:"collector,omitempty" json:"collector,omitempty" validate:"required_with=TerraformDataSource HTTPGet"`
 	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet"`
 	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource"`
 }

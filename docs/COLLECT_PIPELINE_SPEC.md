@@ -43,7 +43,7 @@ spec:
             encoded?: string  # Base64-encoded credentials
   steps:                # Required: List of collection steps
     - id: string        # Required: Unique step identifier
-      collector: string # Required: Collector ID to use
+      collector?: string # Optional: Collector ID to use
       # One of the following step types:
       terraform_datasource:
         name: string        # Required: Terraform data source name

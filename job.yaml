@@ -15,7 +15,7 @@ spec:
         base_url: https://jsonplaceholder.typicode.com
   steps:
     - id: deployments
-      collector: kind
+      # collector: kind
       terraform_datasource:
         name: kubernetes_resources
         args:
