@@ -101,6 +101,27 @@ Nested steps would be useful to transform the data from one step to the next.
 
 <!-- Future ideas and nice-to-haves -->
 
+### [ ] Structured value object for static steps
+
+Add `value_obj` field to static steps to allow passing structured data directly as YAML objects, avoiding string escaping:
+
+```yaml
+- id: config
+  static:
+    value_obj:
+      foo: bar
+      nested:
+        key: value
+```
+
+### [ ] YAML parsing for static steps
+
+Add `parse_as: yaml` option for static steps to support YAML files. Auto-detect by `.yaml`/`.yml` extension like JSON.
+
+### [ ] Glob patterns for static steps
+
+Allow `filepath: "data/*.json"` to load multiple files in a single static step. Each matched file becomes a separate entry in the result.
+
 ### [ ] More template pattern
 
 Evalute goexpr or gotemplate
