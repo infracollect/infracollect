@@ -144,6 +144,12 @@ func contentTypeFromPath(p string) string {
 		return "application/xml"
 	case ".txt":
 		return "text/plain"
+	case ".tar":
+		return "application/x-tar"
+	case ".gz":
+		return "application/gzip"
+	case ".zst":
+		return "application/zstd"
 	default:
 		return ""
 	}

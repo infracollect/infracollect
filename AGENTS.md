@@ -21,6 +21,7 @@ This document provides guidelines and conventions for AI agents working on the i
 ### Adding New Items
 
 When new work is identified during development:
+
 1. Add it to the appropriate priority section
 2. Use the format: `[ ] **Task Title** - Short description`
 
@@ -32,6 +33,11 @@ When new work is identified during development:
 - Use `golangci-lint` for linting (when configured)
 - Follow [Effective Go](https://go.dev/doc/effective_go) guidelines
 - Use `gofumpt`-style formatting for stricter formatting
+
+### Comments
+
+- Only use comments for complex or non-obvious code
+- Don't use comments to explain the obvious
 
 ### Naming Conventions
 
@@ -175,6 +181,7 @@ var ErrCollectorNotFound = errors.New("collector not found")
 - Use table-driven tests for multiple test cases
 - Test files: `*_test.go` in the same package
 - Test functions: `TestXxx` for unit tests, `TestXxx_Scenario` for specific scenarios
+- Always use stretchr/testify/assert and stretchr/testify/require methods for assertions
 
 ### Test Naming
 
@@ -462,6 +469,7 @@ func (c *Collector) Close() error {
 ## Questions?
 
 When in doubt:
+
 - Follow Go standard library patterns
 - Check existing code in the project for consistency
 - Refer to `Effective Go` and `Go Code Review Comments`

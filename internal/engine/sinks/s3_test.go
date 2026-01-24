@@ -158,6 +158,31 @@ func TestS3Sink_Write_ContentType(t *testing.T) {
 			expectedContentType: "text/plain",
 		},
 		{
+			name:                "tar.gz file",
+			path:                "archive.tar.gz",
+			expectedContentType: "application/gzip",
+		},
+		{
+			name:                "tar.zst file",
+			path:                "archive.tar.zst",
+			expectedContentType: "application/zstd",
+		},
+		{
+			name:                "tar file",
+			path:                "archive.tar",
+			expectedContentType: "application/x-tar",
+		},
+		{
+			name:                "gz file",
+			path:                "data.gz",
+			expectedContentType: "application/gzip",
+		},
+		{
+			name:                "zst file",
+			path:                "data.zst",
+			expectedContentType: "application/zstd",
+		},
+		{
 			name:                "unknown extension",
 			path:                "data.bin",
 			expectedContentType: "",

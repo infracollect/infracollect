@@ -66,16 +66,40 @@ type HTTPGetStep struct {
 // OutputSpec configures how results are written.
 // The output system has three concerns:
 //   - Encoding: How to format the data (JSON, YAML, etc.)
+//   - Archive: How to bundle the data (tar with gzip/zstd compression)
 //   - Sink: Where to write (stdout, filesystem)
 //
-// Defaults: JSON encoding, stdout sink.
+// Defaults: JSON encoding, no archive, stdout sink.
 type OutputSpec struct {
 	// Encoding configures the output format (default: json with compact output).
 	Encoding *EncodingSpec `yaml:"encoding,omitempty" json:"encoding,omitempty"`
 
+	// Archive configures bundling output into a single archive file.
+	// When set, all step results are collected into a tar archive with the
+	// specified compression before being written to the sink.
+	Archive *ArchiveSpec `yaml:"archive,omitempty" json:"archive,omitempty"`
+
 	// Sink configures where output is written (default: stdout for stream mode,
 	// filesystem for files mode).
 	Sink *SinkSpec `yaml:"sink,omitempty" json:"sink,omitempty"`
+}
+
+// ArchiveSpec configures bundling output into an archive.
+type ArchiveSpec struct {
+	// Format is the archive format. Currently only "tar" is supported.
+	Format string `yaml:"format" json:"format" validate:"required,oneof=tar"`
+
+	// Compression is the compression algorithm: "gzip", "zstd", or "none".
+	// Default: "gzip".
+	Compression string `yaml:"compression,omitempty" json:"compression,omitempty" validate:"omitempty,oneof=gzip zstd none"`
+
+	// Name is the archive base name. Supports template variables:
+	//   - $JOB_NAME: The job's metadata.name
+	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z)
+	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
+	// The appropriate file extension (e.g., ".tar.gz") is automatically appended.
+	// Default: "$JOB_NAME".
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 }
 
 // EncodingSpec configures the encoder. Exactly one field should be set.

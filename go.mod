@@ -12,6 +12,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/goccy/go-yaml v1.19.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
+	github.com/klauspost/compress v1.18.3
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.6.1
 	go.uber.org/zap v1.27.1

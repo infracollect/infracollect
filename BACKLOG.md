@@ -52,9 +52,9 @@ GitHub Actions workflow with:
 
 - Support for environment variables in the job file
 
-### [ ] Compressor
+### [x] Archive support
 
-- Support .tar.gz/tar.zst compression
+- Support .tar.gz/tar.zst compression via `output.archive` configuration
 
 ### [ ] GoReleaser configuration
 
@@ -114,3 +114,5 @@ Test with Kind, RustFS, etc... for the different collectors.
 ## Done
 
 <!-- Move completed items here with completion date -->
+
+- [x] **Archive support** - Added .tar.gz/tar.zst compression via `output.archive` configuration (completed 2026-01-24)

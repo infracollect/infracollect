@@ -32,6 +32,9 @@ spec:
     encoding:
       json:
         indent: "  "
+    archive:
+      format: tar
+      compression: gzip
     sink:
       filesystem:
         path: ./output

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	v1 "github.com/adrien-f/infracollect/apis/v1"
 	httpCollector "github.com/adrien-f/infracollect/internal/collectors/http"
 	"github.com/adrien-f/infracollect/internal/collectors/terraform"
 	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/adrien-f/infracollect/internal/engine/archivers"
 	"github.com/adrien-f/infracollect/internal/engine/encoders"
 	"github.com/adrien-f/infracollect/internal/engine/sinks"
 	tfclient "github.com/adrien-f/tf-data-client"
@@ -153,38 +153,68 @@ func buildEncoder(output *v1.OutputSpec) (engine.Encoder, error) {
 //   - No sink specified: stdout sink
 //   - Explicit stdout sink: stdout sink
 //   - Explicit filesystem sink: filesystem sink
+//
+// If archive is configured, the inner sink is wrapped with an ArchiveSink.
 func buildSink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
-	// No output spec = stdout
-	if job.Spec.Output == nil {
+	sink, err := buildInnerSink(ctx, pipeline, job)
+	if err != nil {
+		return nil, err
+	}
+
+	if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
+		return wrapWithArchiveSink(pipeline, job, sink)
+	}
+
+	return sink, nil
+}
+
+// buildInnerSink creates the underlying sink (stdout, filesystem, or S3).
+func buildInnerSink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
+	if job.Spec.Output == nil || job.Spec.Output.Sink == nil || job.Spec.Output.Sink.Stdout != nil {
+		if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
+			return nil, fmt.Errorf("stdout sink cannot be used with archive configuration")
+		}
 		return sinks.NewStreamSink(os.Stdout), nil
 	}
 
-	sinkSpec := job.Spec.Output.Sink
-
-	// No sink specified = stdout
-	if sinkSpec == nil {
-		return sinks.NewStreamSink(os.Stdout), nil
-	}
-
-	// Explicit sink configuration
-	if sinkSpec.Stdout != nil {
-		return sinks.NewStreamSink(os.Stdout), nil
-	}
-	if sinkSpec.Filesystem != nil {
+	if job.Spec.Output.Sink.Filesystem != nil {
 		return buildFilesystemSink(pipeline, job)
 	}
-	if sinkSpec.S3 != nil {
+
+	if job.Spec.Output.Sink.S3 != nil {
 		return buildS3Sink(ctx, pipeline, job)
 	}
 
 	return nil, fmt.Errorf("invalid sink configuration: no sink type specified")
 }
 
+func wrapWithArchiveSink(pipeline *engine.Pipeline, job v1.CollectJob, inner engine.Sink) (engine.Sink, error) {
+	archive := job.Spec.Output.Archive
+
+	compression := archive.Compression
+	if compression == "" {
+		compression = "gzip"
+	}
+
+	archiver, err := archivers.NewTarArchiver(compression)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tar archiver: %w", err)
+	}
+
+	name := archive.Name
+	if name == "" {
+		name = "$JOB_NAME"
+	}
+	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
+	name = ExpandVariables(name, vars) + archiver.Extension()
+
+	return sinks.NewArchiveSink(inner, archiver, name), nil
+}
+
 func buildFilesystemSink(pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
 	var path string
 	var prefix string
 
-	// Extract path and prefix from spec if available
 	if job.Spec.Output != nil && job.Spec.Output.Sink != nil && job.Spec.Output.Sink.Filesystem != nil {
 		fs := job.Spec.Output.Sink.Filesystem
 		if fs.Path != nil {
@@ -195,7 +225,6 @@ func buildFilesystemSink(pipeline *engine.Pipeline, job v1.CollectJob) (engine.S
 		}
 	}
 
-	// Default path to current working directory
 	if path == "" {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -204,10 +233,8 @@ func buildFilesystemSink(pipeline *engine.Pipeline, job v1.CollectJob) (engine.S
 		path = wd
 	}
 
-	// Expand prefix variables
-	prefix = strings.ReplaceAll(prefix, "$JOB_NAME", job.Metadata.Name)
-	prefix = strings.ReplaceAll(prefix, "$JOB_DATE_ISO8601", pipeline.Date().Format(engine.ISO8601Basic))
-	prefix = strings.ReplaceAll(prefix, "$JOB_DATE_RFC3339", pipeline.Date().Format(time.RFC3339))
+	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
+	prefix = ExpandVariables(prefix, vars)
 
 	return sinks.NewFilesystemSinkFromPath(filepath.Join(path, prefix))
 }
@@ -238,9 +265,8 @@ func buildS3Sink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJ
 	}
 
 	// Expand prefix variables
-	cfg.Prefix = strings.ReplaceAll(cfg.Prefix, "$JOB_NAME", job.Metadata.Name)
-	cfg.Prefix = strings.ReplaceAll(cfg.Prefix, "$JOB_DATE_ISO8601", pipeline.Date().Format(engine.ISO8601Basic))
-	cfg.Prefix = strings.ReplaceAll(cfg.Prefix, "$JOB_DATE_RFC3339", pipeline.Date().Format(time.RFC3339))
+	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
+	cfg.Prefix = ExpandVariables(cfg.Prefix, vars)
 
 	return sinks.NewS3Sink(ctx, cfg)
 }
