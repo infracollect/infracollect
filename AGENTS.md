@@ -2,6 +2,28 @@
 
 This document provides guidelines and conventions for AI agents working on the infracollect codebase.
 
+## Backlog Management
+
+**IMPORTANT**: Before starting any task, check `BACKLOG.md` to see if the work relates to a tracked item.
+
+### When Starting Work
+
+1. Read `BACKLOG.md` to understand current priorities
+2. If the task matches a backlog item, update its status to `[~]` (In Progress)
+3. Work on tasks in priority order (P0 > P1 > P2 > P3) unless directed otherwise
+
+### When Completing Work
+
+1. Mark the backlog item as `[x]` (Done)
+2. Move the completed item to the "Done" section with the completion date
+3. Format: `[x] **Task Title** - Description (completed YYYY-MM-DD)`
+
+### Adding New Items
+
+When new work is identified during development:
+1. Add it to the appropriate priority section
+2. Use the format: `[ ] **Task Title** - Short description`
+
 ## Code Style
 
 ### Go Conventions
@@ -207,6 +229,10 @@ spec:
     }
 }
 ```
+
+### Test context
+
+Always use `t.Context()` as the context for tests.
 
 ## Documentation Standards
 
