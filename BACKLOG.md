@@ -3,6 +3,7 @@
 This file tracks ideas, tasks, and work items for infracollect. Items are organized by priority.
 
 **Status Legend:**
+
 - `[ ]` Pending
 - `[~]` In Progress
 - `[x]` Done
@@ -16,24 +17,27 @@ This file tracks ideas, tasks, and work items for infracollect. Items are organi
 ### [ ] Basic test coverage
 
 Minimum test coverage for core components:
+
 - `internal/runner/run_test.go` - Job parsing and validation
 - `internal/engine/pipeline_test.go` - Pipeline execution
 - `internal/collectors/terraform/collector_test.go` - Terraform collector
 
-### [ ] LICENSE file
+### [x] LICENSE file
 
 Add a LICENSE file (MIT or Apache-2.0).
 
 ### [ ] Complete README
 
 Update README.md with:
+
 - Installation instructions
 - Quick start guide
 - Basic usage examples
 
-### [ ] CI pipeline
+### [x] CI pipeline
 
 GitHub Actions workflow with:
+
 - `go test ./...`
 - `go build ./cmd/infracollect`
 - Run on PRs and main branch
@@ -44,17 +48,18 @@ GitHub Actions workflow with:
 
 <!-- Core features and important improvements -->
 
-### [ ] Makefile
+### [ ] Environment variables
 
-Add Makefile with standard targets:
-- `build` - Build the binary
-- `test` - Run tests
-- `lint` - Run linter (golangci-lint)
-- `clean` - Clean build artifacts
+- Support for environment variables in the job file
+
+### [ ] Compressor
+
+- Support .tar.gz/tar.zst compression
 
 ### [ ] GoReleaser configuration
 
 Set up GoReleaser for binary distribution:
+
 - Cross-platform builds (linux, darwin, windows)
 - Checksums
 - GitHub releases
@@ -66,6 +71,7 @@ Add `--version` flag to CLI and read from Go runtime
 ### [ ] User-friendly error messages
 
 Improve validation error messages to be more actionable:
+
 - "collector 'aws' not found" → suggest similar names
 - Show line numbers for YAML parse errors
 - Clear messages for missing required fields
