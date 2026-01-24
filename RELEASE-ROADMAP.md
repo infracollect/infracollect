@@ -23,9 +23,9 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Container Images
 
-- [ ] **Dockerfile**: Create multi-stage Dockerfile for minimal image
+- [x] **Dockerfile**: Create multi-stage Dockerfile for minimal image
 - [ ] **GitHub Container Registry**: Push images to `ghcr.io`
-- [ ] **Multi-arch images**: Build for linux/amd64 and linux/arm64
+- [x] **Multi-arch images**: Build for linux/amd64 and linux/arm64
 - [ ] **Image signing**: Sign images with Cosign/Sigstore
 
 ---
@@ -73,7 +73,7 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Code Organization
 
-- [ ] **Makefile**: Add targets for common tasks (build, test, lint, generate)
+- [x] **Mise**: Add targets for common tasks (build, test, lint, generate)
 - [ ] **go generate**: Document and automate code generation steps
 
 ---
@@ -142,7 +142,7 @@ This document tracks work needed to get the project into production-ready shape.
 **Phase 1 - Foundation**
 
 1. LICENSE file
-2. Makefile with basic targets
+2. Mise with basic targets (build, test, lint, generate)
 3. golangci-lint configuration
 4. Basic GitHub Actions CI (lint, test, build)
 
