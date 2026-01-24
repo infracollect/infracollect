@@ -9,7 +9,7 @@ infracollect lets you query and export data from your infrastructure using decla
 - **No Terraform CLI required** — Runs providers directly as Go libraries
 - **Multi-source collection** — Combine data from AWS, Azure, GCP, Kubernetes, and REST APIs in a single job
 - **Declarative YAML** — Define what to collect, not how to collect it
-- **Flexible output** — Write to stdout, local files, or S3-compatible storage
+- **Flexible output** — Write to stdout, local files, or S3-compatible storage; optionally bundle results into a single `.tar.gz` or `.tar.zst` archive
 
 ## Quick Start
 
@@ -144,6 +144,30 @@ spec:
 
 This creates files like `./output/my-job/20260123T120000Z/deployments.json`.
 
+### Bundle Output into an Archive
+
+Bundle all step outputs into a single `.tar.gz` or `.tar.zst` file (requires a filesystem or S3 sink):
+
+```yaml
+spec:
+  # ... collectors and steps ...
+
+  output:
+    encoding:
+      json:
+        indent: "  "
+    archive:
+      format: tar
+      compression: gzip   # or zstd, none
+      name: $JOB_NAME-$JOB_DATE_ISO8601
+    sink:
+      filesystem:
+        path: ./output
+        prefix: $JOB_NAME/$JOB_DATE_RFC3339
+```
+
+This produces one file like `./output/my-job/2026-01-24T12:00:00Z/my-job-20260124T120000Z.tar.gz` containing `users.json`, `posts.json`, etc.
+
 ### Export to S3
 
 Write results directly to S3, R2, or MinIO:
@@ -167,7 +191,7 @@ spec:
 | **CollectJob** | A YAML file defining what data to collect and where to send it |
 | **Collector** | A data source configuration (Terraform provider or HTTP client) |
 | **Step** | A single data collection operation using a collector |
-| **Output** | Where and how to write collected data (stdout, filesystem, S3) |
+| **Output** | Where and how to write collected data (stdout, filesystem, S3); optional archive (tar.gz/tar.zst) |
 
 ## Supported Collectors
 

@@ -8,11 +8,13 @@ A `CollectJob` is a YAML document that defines a collection job for gathering in
 
 ### Output Behavior
 
-Results are always written as **one file per step**, with filenames following the pattern `{step-id}.{extension}` (e.g., `deployments.json`). Each result includes:
+Results are written as **one file per step** with filenames `{step-id}.{extension}` (e.g., `deployments.json`). Each result includes:
 - `id`: The step identifier that produced this result
 - `data`: The actual result data from the data source
 
-When writing to stdout, each result is written as a separate line. When writing to the filesystem, each result is written to its own file.
+**Without archive**: When writing to stdout, each result is a separate line; when writing to the filesystem or S3, each result is its own file.
+
+**With archive**: When `output.archive` is set, all step outputs are collected into a single tar archive (with optional gzip or zstd compression) before being written to the sink. The sink receives one file (e.g., `my-job-20260124T120000Z.tar.gz`) containing `users.json`, `posts.json`, etc. Archive requires a filesystem or S3 sink; stdout cannot be used with archive.
 
 ## Schema
 
@@ -55,9 +57,13 @@ spec:
     encoding?:           # Optional: Encoding format configuration
       json?:             # Optional: JSON encoding options
         indent?: string  # Optional: Indentation (empty = compact, "  " = 2 spaces, "\t" = tabs)
+    archive?:            # Optional: Bundle all step outputs into a single archive (requires filesystem or S3 sink)
+      format: string     # Required: "tar" (only supported format)
+      compression?: string  # Optional: "gzip" (default), "zstd", or "none"
+      name?: string     # Optional: Archive base name; extension auto-appended. Default: $JOB_NAME. Supports $JOB_NAME, $JOB_DATE_ISO8601, $JOB_DATE_RFC3339
     sink?:               # Optional: Output destination configuration
       stdout?: {}        # Optional: Write to stdout (one result per line)
-      filesystem?:       # Optional: Write to filesystem (one file per step)
+      filesystem?:       # Optional: Write to filesystem (one file per step, or one archive if output.archive is set)
         path?: string    # Optional: Directory path (default: current directory)
         prefix?: string  # Optional: Prefix for output directory (supports $JOB_NAME, $JOB_DATE_ISO8601, $JOB_DATE_RFC3339)
       s3?:               # Optional: Write to S3-compatible storage (AWS S3, R2, MinIO)
@@ -140,6 +146,39 @@ spec:
   - `indent: "  "` - Pretty-printed with 2 spaces
   - `indent: "\t"` - Pretty-printed with tabs
 
+#### `spec.output.archive` (optional)
+- **Type**: `object`
+- **Description**: Bundles all step outputs into a single tar archive before writing to the sink. Each step's encoded result is added as a file in the archive (e.g., `users.json`, `posts.json`). The archive is written as one file to the underlying sink (filesystem or S3).
+- **Requirement**: Archive cannot be used with stdout; use a filesystem or S3 sink.
+- **Default**: If not specified, outputs are written as separate files (one per step).
+
+##### `spec.output.archive.format` (required when archive is specified)
+- **Type**: `string`
+- **Description**: Archive format
+- **Values**: `tar` (only supported format)
+- **Example**: `format: tar`
+
+##### `spec.output.archive.compression` (optional)
+- **Type**: `string`
+- **Description**: Compression algorithm for the archive
+- **Values**:
+  - `gzip` (default): Produces `.tar.gz`
+  - `zstd`: Produces `.tar.zst`
+  - `none`: Uncompressed `.tar`
+- **Examples**: `compression: gzip`, `compression: zstd`
+
+##### `spec.output.archive.name` (optional)
+- **Type**: `string`
+- **Description**: Base name for the archive file. The correct extension (`.tar.gz`, `.tar.zst`, or `.tar`) is appended automatically.
+- **Default**: `$JOB_NAME`
+- **Variables**: Supports variable substitution:
+  - `$JOB_NAME`: The job's `metadata.name`
+  - `$JOB_DATE_ISO8601`: Current UTC time in ISO8601 basic format (e.g., `20260124T120000Z`)
+  - `$JOB_DATE_RFC3339`: Current UTC time in RFC3339 format (e.g., `2026-01-24T12:00:00Z`)
+- **Examples**:
+  - `name: $JOB_NAME` → `my-job.tar.gz`
+  - `name: $JOB_NAME-$JOB_DATE_ISO8601` → `my-job-20260124T120000Z.tar.gz`
+
 #### `spec.output.sink` (optional)
 - **Type**: `object`
 - **Description**: Configures where output is written
@@ -156,7 +195,7 @@ spec:
 ##### `spec.output.sink.filesystem` (optional)
 - **Type**: `object`
 - **Description**: Write output to files on the local filesystem
-- **File Naming**: Each step's output is written to a file named `{step-id}.{extension}` (e.g., `deployments.json`)
+- **File Naming**: Without archive, each step's output is written to a file named `{step-id}.{extension}` (e.g., `deployments.json`). With `output.archive`, the sink receives a single archive file (e.g., `my-job-20260124T120000Z.tar.gz`) containing all step outputs.
 - **Location**: Files are written to `{path}/{prefix}/` if both are specified, or just `{path}/` if only path is specified
 
 ##### `spec.output.sink.filesystem.path` (optional)
@@ -179,7 +218,7 @@ spec:
 ##### `spec.output.sink.s3` (optional)
 - **Type**: `object`
 - **Description**: Write output to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, etc.)
-- **File Naming**: Each step's output is written as an object with key `{prefix}/{step-id}.{extension}` (e.g., `exports/deployments.json`)
+- **File Naming**: Without archive, each step's output is written as an object with key `{prefix}/{step-id}.{extension}` (e.g., `exports/deployments.json`). With `output.archive`, the sink receives a single archive object (e.g., `{prefix}/my-job-20260124T120000Z.tar.gz`).
 - **Credentials**: Uses AWS SDK credential chain by default (env vars, shared credentials file, IAM role). Explicit credentials can be provided via the `credentials` field.
 
 ##### `spec.output.sink.s3.bucket` (required)
@@ -379,6 +418,8 @@ spec:
 6. **Output Validation**:
    - If `output.encoding` is specified, exactly one encoding type should be set
    - If `output.sink` is specified, exactly one sink type should be set
+   - If `output.archive` is specified, `output.sink` must be filesystem or S3; stdout cannot be used with archive
+   - If `output.archive` is specified, `archive.format` must be `tar`
 
 ## Examples
 
@@ -676,6 +717,44 @@ spec:
         prefix: $JOB_NAME/$JOB_DATE_RFC3339
 ```
 
+#### Archive to .tar.gz (Filesystem)
+
+Bundle all step outputs into a single compressed archive:
+
+```yaml
+kind: CollectJob
+metadata:
+  name: archive-test
+spec:
+  collectors:
+    - id: api
+      http:
+        base_url: https://api.example.com
+  steps:
+    - id: users
+      collector: api
+      http_get:
+        path: /users
+    - id: posts
+      collector: api
+      http_get:
+        path: /posts
+  output:
+    encoding:
+      json:
+        indent: "  "
+    archive:
+      format: tar
+      compression: gzip
+      name: $JOB_NAME-$JOB_DATE_ISO8601
+    sink:
+      filesystem:
+        path: ./output
+        prefix: $JOB_NAME/$JOB_DATE_RFC3339
+```
+
+This produces `./output/archive-test/2026-01-24T12:00:00Z/archive-test-20260124T120000Z.tar.gz` containing `users.json` and `posts.json`. Use `compression: zstd` for `.tar.zst` or `compression: none` for `.tar`.
+
 #### Default Output (Compact JSON to Stdout)
 
 When `output` is not specified, the default behavior is compact JSON to stdout:
@@ -832,3 +911,4 @@ Provider arguments can reference environment variables using `${VARIABLE_NAME}` 
 9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_ISO8601` variables to organize outputs by job and timestamp. Prefer `$JOB_DATE_ISO8601` over `$JOB_DATE_RFC3339` as it avoids colons which require URL encoding
 10. **Result Structure**: Each result includes an `id` field identifying the step that produced it, along with the `data` field containing the actual result data
 11. **S3 Credentials**: For AWS S3, prefer using IAM roles or environment variables over explicit credentials in the job file. Use explicit credentials only for non-AWS S3-compatible services (R2, MinIO)
+12. **Archive**: Use `output.archive` to produce a single `.tar.gz` or `.tar.zst` file when you need to ship or store a complete snapshot. Archive requires a filesystem or S3 sink. Use `name: $JOB_NAME-$JOB_DATE_ISO8601` for unique, sortable filenames

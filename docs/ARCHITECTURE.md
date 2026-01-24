@@ -49,7 +49,7 @@ flowchart TD
 
 ### 1. Job Parser
 
-**Location**: `pkg/runner/`
+**Location**: `internal/runner/`
 
 **Responsibilities**:
 - Parse YAML files into `CollectJob` structs (defined in `apis/v1/`)
@@ -62,7 +62,7 @@ flowchart TD
 
 ### 2. Pipeline
 
-**Location**: `pkg/engine/pipeline.go`
+**Location**: `internal/engine/pipeline.go`
 
 **Responsibilities**:
 - Manage collectors and steps in a single pipeline
@@ -79,8 +79,8 @@ flowchart TD
 ### 3. Collectors
 
 **Locations**:
-- `pkg/collectors/terraform/` - Terraform provider collector
-- `pkg/collectors/http/` - HTTP REST API collector
+- `internal/collectors/terraform/` - Terraform provider collector
+- `internal/collectors/http/` - HTTP REST API collector
 
 **Responsibilities**:
 - Abstract data collection from various sources
@@ -89,7 +89,7 @@ flowchart TD
 - Manage lifecycle (start/close)
 
 **Interfaces**:
-- `Collector` (in `pkg/engine/collector.go`)
+- `Collector` (in `internal/engine/collector.go`)
 
 #### Terraform Collector
 
@@ -109,8 +109,8 @@ flowchart TD
 ### 4. Steps
 
 **Locations**:
-- `pkg/collectors/terraform/steps.go` - Terraform data source steps
-- `pkg/collectors/http/steps.go` - HTTP request steps
+- `internal/collectors/terraform/steps.go` - Terraform data source steps
+- `internal/collectors/http/steps.go` - HTTP request steps
 
 **Responsibilities**:
 - Represent a data collection operation
@@ -119,7 +119,7 @@ flowchart TD
 - Return results in standardized format
 
 **Interfaces**:
-- `Step` (in `pkg/engine/step.go`)
+- `Step` (in `internal/engine/step.go`)
 
 **Implementations**:
 - `dataSourceStep`: Executes Terraform data sources through terraform collectors
@@ -199,14 +199,16 @@ Step Results → Map[string]Result → Returned to Runner
 ### 7. Result Writing
 
 ```
-Runner.WriteResults() → Encoder.EncodeResult() → Sink.Write()
-→ Files written (one per step) or stdout output
+Runner.WriteResults() → Encoder.EncodeResult() → Sink.Write() [per step]
+→ Sink.Close() [after all steps; if ArchiveSink: Archiver.Close() → inner Sink.Write(archive) → inner Sink.Close()]
+→ Files written (one per step, or one archive containing all steps) or stdout output
 ```
 
 The Runner handles all result writing:
 - Encodes each result using the configured encoder
-- Writes to the configured sink (stdout or filesystem)
-- Each step's result is written as a separate file with filename `{step-id}.{extension}`
+- Writes to the configured sink (stdout, filesystem, S3, or ArchiveSink wrapping filesystem/S3)
+- Without archive: each step's result is written as a separate file with filename `{step-id}.{extension}`
+- With archive: each step's result is added to the archiver; on `Sink.Close`, the archive is written as one file (e.g., `$JOB_NAME-$JOB_DATE_ISO8601.tar.gz`) to the inner sink
 - Results include an `id` field identifying the step
 
 ## Multi-Collector Execution Model
@@ -306,7 +308,7 @@ Results contain:
 
 ### Runner
 
-**Location**: `pkg/runner/run.go`
+**Location**: `internal/runner/run.go`
 
 **Responsibilities**:
 - Orchestrate pipeline execution
@@ -320,9 +322,8 @@ Results contain:
 - `WriteResults()`: Encodes and writes results to the sink
 
 **Output Behavior**:
-- Always writes one file per step with filename `{step-id}.{extension}`
-- For stdout: each result written as a separate line
-- For filesystem: each result written to its own file in the configured directory
+- Without archive: writes one file per step with filename `{step-id}.{extension}`; for stdout each result is a separate line; for filesystem/S3 each result is its own file
+- With archive: an `ArchiveSink` wraps the underlying sink; each step write is added to an in-memory archive; on `Close`, the archive is finalized and written as a single file (e.g., `.tar.gz`) to the inner sink
 
 ## Error Handling
 
@@ -342,11 +343,11 @@ All errors are wrapped with context and returned through the interface methods. 
 
 ## Output System
 
-The output system has been simplified to remove the Output abstraction layer. Results are now written directly by the Runner:
+Results are written by the Runner through an encoder and sink. When `output.archive` is configured, an `ArchiveSink` wraps the underlying sink and an `Archiver` bundles all step outputs into a single archive file.
 
 ### Encoders
 
-**Location**: `pkg/engine/encoders/`
+**Location**: `internal/engine/encoders/`
 
 **Responsibilities**:
 - Encode results into specific formats (JSON, YAML, etc.)
@@ -355,28 +356,48 @@ The output system has been simplified to remove the Output abstraction layer. Re
 **Interfaces**:
 - `Encoder`: Encodes a single result to a reader
 
-### Sinks
+### Archivers
 
-**Location**: `pkg/engine/sinks/`
+**Location**: `internal/engine/archiver.go` (interface), `internal/engine/archivers/` (implementations)
 
 **Responsibilities**:
-- Write encoded data to destinations (stdout, filesystem)
+- Collect multiple files into an archive (tar with optional compression)
+- Expose `AddFile` to add step outputs, `Close` to finalize and obtain the archive bytes, and `Extension` for the file extension (e.g., `.tar.gz`)
+
+**Interfaces**:
+- `Archiver`: `AddFile(ctx, filename, data)`, `Close() (io.Reader, error)`, `Extension() string`
+
+**Implementations**:
+- `archivers.TarArchiver`: Tar with gzip, zstd, or no compression (`.tar.gz`, `.tar.zst`, `.tar`)
+
+### Sinks
+
+**Location**: `internal/engine/sinks/`
+
+**Responsibilities**:
+- Write encoded data to destinations (stdout, filesystem, S3)
 - Handle file creation and directory management
 
 **Interfaces**:
-- `Sink`: Writes data to a destination with a given path
+- `Sink`: `Write(ctx, path, data)`, `Close(ctx)`, plus `Named`
 
 **Types**:
 - `StreamSink`: Writes to an `io.Writer` (typically stdout)
 - `FilesystemSink`: Writes to files on the local filesystem
+- `S3Sink`: Writes to S3-compatible object storage
+- `ArchiveSink`: Wraps another sink; on each `Write`, adds the data to an `Archiver`; on `Close`, finalizes the archive and writes the single archive file to the inner sink, then closes the inner sink. Requires a filesystem or S3 sink; cannot wrap stdout.
 
 ### Writing Flow
 
-1. Runner collects results from Pipeline.Run()
-2. For each result:
-   - Encoder encodes the result
-   - Sink writes the encoded data with filename `{step-id}.{extension}`
-3. Sink is closed after all results are written
+1. Runner collects results from `Pipeline.Run()`.
+2. If `output.archive` is set, the sink is an `ArchiveSink`; otherwise it is a `StreamSink`, `FilesystemSink`, or `S3Sink` directly.
+3. For each result:
+   - Encoder encodes the result.
+   - **Without archive**: Sink writes with path `{step-id}.{extension}`.
+   - **With archive**: `ArchiveSink.Write` adds the data to the `Archiver` under path `{step-id}.{extension}`.
+4. On `Sink.Close`:
+   - **Without archive**: Sink closes (no-op for stream/fs; S3 may flush).
+   - **With archive**: `ArchiveSink.Close` calls `Archiver.Close`, writes the archive to the inner sink with the configured archive name (e.g., `$JOB_NAME-$JOB_DATE_ISO8601.tar.gz`), then closes the inner sink.
 
 ## Future Architecture Considerations
 

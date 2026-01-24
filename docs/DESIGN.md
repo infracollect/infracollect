@@ -108,6 +108,16 @@ A **DataSource** is a Terraform data source that queries infrastructure:
 - Each data source has specific arguments
 - Returns resource data in JSON format
 
+### Output and Archival
+
+Output is configured via `spec.output` with three concerns:
+
+1. **Encoding**: How to format each step’s data (e.g., JSON with optional indentation).
+2. **Archive** (optional): How to bundle step outputs into a single file. When set, all encoded step results are collected into a tar archive with optional gzip or zstd compression. Archive requires a filesystem or S3 sink; stdout is not supported because it is a stream of per-step lines.
+3. **Sink**: Where to write—stdout, filesystem, or S3. With archive, the sink receives one file (e.g., `my-job-20260124T120000Z.tar.gz`) containing `{step-id}.{extension}` entries.
+
+Template variables (`$JOB_NAME`, `$JOB_DATE_ISO8601`, `$JOB_DATE_RFC3339`) can be used in archive names and sink prefixes for organized, timestamped output.
+
 ## Multi-Collector Support
 
 The system supports multiple collectors in a single job:
@@ -127,7 +137,8 @@ The system supports multiple collectors in a single job:
 
 ## Future Considerations
 
-- **Output Formats**: Add structured output handlers (JSON, YAML, CSV, etc.)
+- **Output Formats**: Add YAML, CSV, or other encoding formats
+- **Archive Formats**: Support formats beyond tar (e.g., zip) if needed
 - **Plugin System**: Allow custom collectors and step types via plugins
 - **Scheduling**: Support scheduled collection jobs
 - **Caching**: Cache collected data to reduce provider API calls
