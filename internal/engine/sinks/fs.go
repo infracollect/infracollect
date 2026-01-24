@@ -2,6 +2,7 @@ package sinks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,7 +39,7 @@ func (s *FilesystemSink) Kind() string {
 	return "filesystem"
 }
 
-func (s *FilesystemSink) Write(ctx context.Context, path string, data io.Reader) error {
+func (s *FilesystemSink) Write(ctx context.Context, path string, data io.Reader) (err error) {
 	// Ensure parent directories exist
 	dir := filepath.Dir(path)
 	if dir != "" && dir != "." {
@@ -51,7 +52,9 @@ func (s *FilesystemSink) Write(ctx context.Context, path string, data io.Reader)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	if _, err = io.Copy(f, data); err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)

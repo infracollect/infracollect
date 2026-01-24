@@ -38,7 +38,7 @@ func runGetStepTests(t *testing.T, tests []getStepTest) {
 				capturedReq = r
 				w.Header().Set("Content-Type", contentType)
 				w.WriteHeader(statusCode)
-				w.Write([]byte(tt.response))
+				_, _ = w.Write([]byte(tt.response))
 			}))
 			defer server.Close()
 

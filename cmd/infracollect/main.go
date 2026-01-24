@@ -82,9 +82,9 @@ func main() {
 
 	defer func() {
 		if loggerDeferFunc != nil {
-			loggerDeferFunc()
+			_ = loggerDeferFunc()
 		}
 	}()
 
-	app.Run(ctx, os.Args)
+	_ = app.Run(ctx, os.Args)
 }

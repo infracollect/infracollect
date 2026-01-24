@@ -62,7 +62,7 @@ func (s *getStep) Resolve(ctx context.Context) (engine.Result, error) {
 	if err != nil {
 		return engine.Result{}, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -109,7 +109,7 @@ func (s *getStep) processResponse(contentEncoding string, body io.ReadCloser) (a
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gzipReader.Close()
+		defer func() { _ = gzipReader.Close() }()
 		body = gzipReader
 	}
 

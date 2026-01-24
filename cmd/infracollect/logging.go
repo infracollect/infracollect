@@ -7,9 +7,9 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	loggerCtxKey = struct{}{}
-)
+type loggerCtxKeyType struct{}
+
+var loggerCtxKey = loggerCtxKeyType{}
 
 func createLogger(debug bool, logLevel string) (logger *zap.Logger, level zap.AtomicLevel, err error) {
 	level, err = zap.ParseAtomicLevel(logLevel)
