@@ -14,6 +14,7 @@ import (
 	"github.com/adrien-f/infracollect/internal/engine/archivers"
 	"github.com/adrien-f/infracollect/internal/engine/encoders"
 	"github.com/adrien-f/infracollect/internal/engine/sinks"
+	"github.com/adrien-f/infracollect/internal/engine/steps"
 	tfclient "github.com/adrien-f/tf-data-client"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
@@ -131,6 +132,21 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 			}
 
 			logger.Info("created http get step", zap.String("step_id", stepSpec.ID))
+		} else if stepSpec.Static != nil {
+			step, err := steps.NewStaticStep(stepSpec.ID, steps.StaticStepConfig{
+				Filepath: stepSpec.Static.Filepath,
+				Value:    stepSpec.Static.Value,
+				ParseAs:  stepSpec.Static.ParseAs,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create static step: %w", err)
+			}
+
+			if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
+				return nil, fmt.Errorf("failed to add static step: %w", err)
+			}
+
+			logger.Info("created static step", zap.String("step_id", stepSpec.ID))
 		} else {
 			logger.Error("unknown step type", zap.String("step_id", stepSpec.ID))
 			return nil, fmt.Errorf("unknown step type: %s", stepSpec.ID)

@@ -15,7 +15,7 @@ spec:
         base_url: https://jsonplaceholder.typicode.com
   steps:
     - id: deployments
-      # collector: kind
+      collector: kind
       terraform_datasource:
         name: kubernetes_resources
         args:
@@ -27,14 +27,26 @@ spec:
       http_get:
         path: /users
         response_type: json
-
+    - id: static
+      static:
+        filepath: ./job.yaml
+        parse_as: raw
+    - id: foo
+      static:
+        filepath: ./foo.json
+        # parse_as: json
+    - id: bar
+      static:
+        value: |
+          {"foo": "bar"}
+        parse_as: json
   output:
     encoding:
       json:
         indent: "  "
-    archive:
-      format: tar
-      compression: gzip
+    # archive:
+    #   format: tar
+    #   compression: gzip
     sink:
       filesystem:
         path: ./output

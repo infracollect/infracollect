@@ -29,6 +29,7 @@ type Step struct {
 	Collector           *string                  `yaml:"collector,omitempty" json:"collector,omitempty" validate:"required_with=TerraformDataSource HTTPGet"`
 	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet"`
 	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource"`
+	Static              *StaticStep              `yaml:"static,omitempty" json:"static,omitempty" validate:"excluded_with=TerraformDataSource HTTPGet Collector"`
 }
 
 // TerraformDataSourceStep is a step that uses a Terraform provider's data source.
@@ -61,6 +62,18 @@ type HTTPGetStep struct {
 	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
 	Params       map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
 	ResponseType string            `yaml:"response_type,omitempty" json:"response_type,omitempty" validate:"oneof=json raw"`
+}
+
+type StaticStep struct {
+	// Filepath is a local and relative path to a file. Symlinks and directories are not allowed.
+	Filepath *string `yaml:"filepath,omitempty" json:"filepath,omitempty" validate:"omitempty,required_without=Value,excluded_with=Value"`
+
+	// Value is an inline value to use as the static value.
+	Value *string `yaml:"value,omitempty" json:"value,omitempty" validate:"omitempty,required_without=Filepath,excluded_with=Filepath"`
+
+	// ParseAs is the format to parse the value as. Either "json" or "raw". Default is "json".
+	// If not set and the file extension is .json, the value is parsed as JSON.
+	ParseAs *string `yaml:"parse_as,omitempty" json:"parse_as,omitempty" validate:"omitempty,oneof=json raw"`
 }
 
 // OutputSpec configures how results are written.
