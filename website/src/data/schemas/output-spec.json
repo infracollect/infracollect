@@ -1,0 +1,36 @@
+{
+  "name": "OutputSpec",
+  "description": "OutputSpec configures how results are written.\nThe output system has three concerns:\n- Encoding: How to format the data (JSON, YAML, etc.)\n- Archive: How to bundle the data (tar with gzip/zstd compression)\n- Sink: Where to write (stdout, filesystem)\n\nDefaults: JSON encoding, no archive, stdout sink.",
+  "fields": [
+    {
+      "name": "Encoding",
+      "yamlKey": "encoding",
+      "type": "EncodingSpec",
+      "required": false,
+      "description": "Encoding configures the output format (default: json with compact output).",
+      "enum": null,
+      "ref": "EncodingSpec",
+      "default": null
+    },
+    {
+      "name": "Archive",
+      "yamlKey": "archive",
+      "type": "ArchiveSpec",
+      "required": false,
+      "description": "Archive configures bundling output into a single archive file.\nWhen set, all step results are collected into a tar archive with the\nspecified compression before being written to the sink.",
+      "enum": null,
+      "ref": "ArchiveSpec",
+      "default": null
+    },
+    {
+      "name": "Sink",
+      "yamlKey": "sink",
+      "type": "SinkSpec",
+      "required": false,
+      "description": "Sink configures where output is written (default: stdout for stream mode,\nfilesystem for files mode).",
+      "enum": null,
+      "ref": "SinkSpec",
+      "default": null
+    }
+  ]
+}

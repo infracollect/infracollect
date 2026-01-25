@@ -1,0 +1,66 @@
+---
+title: Static
+description: Reference for the Static step configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import staticStep from '../../../../data/schemas/static-step.json';
+
+The static step allows you to include data from local files or inline values in your collection job. This is useful for including configuration files, static data, or any content that doesn't require a collector.
+
+## Configuration
+
+<PropertyReference schema={staticStep} />
+
+You must specify exactly one of `filepath` or `value`.
+
+## Parsing behavior
+
+The `parse_as` option controls how the data is interpreted:
+
+- **json** (default): Parses the content as JSON and includes the resulting structure in the output
+- **raw**: Includes the content as-is without parsing
+
+When `parse_as` is not specified:
+- Files with a `.json` extension are automatically parsed as JSON
+- All other content defaults to JSON parsing
+
+## Output format
+
+When using `parse_as: raw`:
+- For files: `{"filename": "<filepath>"}`
+- For inline values: `{"value": "<content>"}`
+
+When using `parse_as: json`, the parsed JSON structure is included directly.
+
+## Examples
+
+### Load a JSON file
+
+```yaml
+steps:
+  - id: config
+    static:
+      filepath: ./config.json
+```
+
+### Inline JSON value
+
+```yaml
+steps:
+  - id: metadata
+    static:
+      value: |
+        {"environment": "production", "version": "1.0.0"}
+      parse_as: json
+```
+
+### Raw file content
+
+```yaml
+steps:
+  - id: readme
+    static:
+      filepath: ./README.md
+      parse_as: raw
+```

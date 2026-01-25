@@ -1,0 +1,25 @@
+---
+title: Terraform
+description: Reference for the Terraform collector configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import terraformCollector from '../../../../data/schemas/terraform-collector.json';
+
+The Terraform collector uses Terraform providers as data source collectors, allowing you to fetch data from any infrastructure provider that has a Terraform provider.
+
+## Configuration
+
+<PropertyReference schema={terraformCollector} />
+
+## Example
+
+```yaml
+collectors:
+  - id: aws
+    terraform:
+      provider: hashicorp/aws
+      version: "5.0.0"
+      args:
+        region: us-east-1
+```

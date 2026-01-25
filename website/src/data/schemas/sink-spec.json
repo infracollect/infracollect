@@ -1,0 +1,36 @@
+{
+  "name": "SinkSpec",
+  "description": "SinkSpec configures where output is written. Exactly one field should be set.\nIf none is set, defaults based on mode: stdout for stream, filesystem for files.",
+  "fields": [
+    {
+      "name": "Stdout",
+      "yamlKey": "stdout",
+      "type": "StdoutSinkSpec",
+      "required": false,
+      "description": "Stdout writes to standard output.",
+      "enum": null,
+      "ref": "StdoutSinkSpec",
+      "default": null
+    },
+    {
+      "name": "Filesystem",
+      "yamlKey": "filesystem",
+      "type": "FilesystemSinkSpec",
+      "required": false,
+      "description": "Filesystem writes to files on the local filesystem.",
+      "enum": null,
+      "ref": "FilesystemSinkSpec",
+      "default": null
+    },
+    {
+      "name": "S3",
+      "yamlKey": "s3",
+      "type": "S3SinkSpec",
+      "required": false,
+      "description": "S3 writes to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO).",
+      "enum": null,
+      "ref": "S3SinkSpec",
+      "default": null
+    }
+  ]
+}

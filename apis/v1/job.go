@@ -40,11 +40,18 @@ type TerraformDataSourceStep struct {
 }
 
 type HTTPCollector struct {
-	BaseURL  string            `yaml:"base_url" json:"base_url"`
-	Headers  map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	Auth     *HTTPAuth         `yaml:"auth,omitempty" json:"auth,omitempty"`
-	Timeout  *int              `yaml:"timeout,omitempty" json:"timeout,omitempty"`
-	Insecure bool              `yaml:"insecure,omitempty" json:"insecure,omitempty"`
+	// BaseURL is the base URL for the HTTP collector, such as "https://api.example.com".
+	BaseURL string `yaml:"base_url" json:"base_url"`
+
+	// Headers to include in all requests.
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Auth    *HTTPAuth         `yaml:"auth,omitempty" json:"auth,omitempty"`
+
+	// Timeout is the request timeout in seconds.
+	Timeout *int `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+
+	// Insecure skips TLS certificate verification.
+	Insecure bool `yaml:"insecure,omitempty" json:"insecure,omitempty"`
 }
 
 type HTTPAuth struct {
@@ -54,14 +61,23 @@ type HTTPAuth struct {
 type HTTPBasicAuth struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 	Password string `yaml:"password,omitempty" json:"password,omitempty"`
-	Encoded  string `yaml:"encoded,omitempty" json:"encoded,omitempty"`
+
+	// Encoded is a pre-encoded Base64-encoded credentials.
+	Encoded string `yaml:"encoded,omitempty" json:"encoded,omitempty"`
 }
 
 type HTTPGetStep struct {
-	Path         string            `yaml:"path" json:"path"`
-	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	Params       map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
-	ResponseType string            `yaml:"response_type,omitempty" json:"response_type,omitempty" validate:"oneof=json raw"`
+	// Path is the request path.
+	Path string `yaml:"path" json:"path"`
+
+	// Headers to include in the request.
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+
+	// Query parameters to append to the request URL.
+	Params map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+
+	// ResponseType is the format to parse the response as.
+	ResponseType string `yaml:"response_type,omitempty" json:"response_type,omitempty" validate:"oneof=json raw"`
 }
 
 type StaticStep struct {
@@ -71,8 +87,7 @@ type StaticStep struct {
 	// Value is an inline value to use as the static value.
 	Value *string `yaml:"value,omitempty" json:"value,omitempty" validate:"omitempty,required_without=Filepath,excluded_with=Filepath"`
 
-	// ParseAs is the format to parse the value as. Either "json" or "raw". Default is "json".
-	// If not set and the file extension is .json, the value is parsed as JSON.
+	// ParseAs is the format to parse the value as.
 	ParseAs *string `yaml:"parse_as,omitempty" json:"parse_as,omitempty" validate:"omitempty,oneof=json raw"`
 }
 
@@ -102,8 +117,7 @@ type ArchiveSpec struct {
 	// Format is the archive format. Currently only "tar" is supported.
 	Format string `yaml:"format" json:"format" validate:"required,oneof=tar"`
 
-	// Compression is the compression algorithm: "gzip", "zstd", or "none".
-	// Default: "gzip".
+	// Compression algorithm
 	Compression string `yaml:"compression,omitempty" json:"compression,omitempty" validate:"omitempty,oneof=gzip zstd none"`
 
 	// Name is the archive base name. Supports template variables:

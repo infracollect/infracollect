@@ -1,0 +1,49 @@
+{
+  "name": "HTTPGetStep",
+  "description": "",
+  "fields": [
+    {
+      "name": "Path",
+      "yamlKey": "path",
+      "type": "string",
+      "required": false,
+      "description": "Path is the request path.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Headers",
+      "yamlKey": "headers",
+      "type": "map[string]string",
+      "required": false,
+      "description": "Headers to include in the request.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Params",
+      "yamlKey": "params",
+      "type": "map[string]string",
+      "required": false,
+      "description": "Query parameters to append to the request URL.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "ResponseType",
+      "yamlKey": "response_type",
+      "type": "string",
+      "required": false,
+      "description": "ResponseType is the format to parse the response as.",
+      "enum": [
+        "json",
+        "raw"
+      ],
+      "ref": null,
+      "default": null
+    }
+  ]
+}

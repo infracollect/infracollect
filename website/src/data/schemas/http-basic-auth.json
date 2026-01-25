@@ -1,0 +1,36 @@
+{
+  "name": "HTTPBasicAuth",
+  "description": "",
+  "fields": [
+    {
+      "name": "Username",
+      "yamlKey": "username",
+      "type": "string",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Password",
+      "yamlKey": "password",
+      "type": "string",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Encoded",
+      "yamlKey": "encoded",
+      "type": "string",
+      "required": false,
+      "description": "Encoded is a pre-encoded Base64-encoded credentials.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

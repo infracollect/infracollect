@@ -1,0 +1,26 @@
+{
+  "name": "TerraformDataSourceStep",
+  "description": "TerraformDataSourceStep is a step that uses a Terraform provider's data source.",
+  "fields": [
+    {
+      "name": "Name",
+      "yamlKey": "name",
+      "type": "string",
+      "required": false,
+      "description": "Name of the provider data source to use.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Args",
+      "yamlKey": "args",
+      "type": "map[string]any",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "EncodingSpec",
+  "description": "EncodingSpec configures the encoder. Exactly one field should be set.\nIf none is set, defaults to compact JSON.",
+  "fields": [
+    {
+      "name": "JSON",
+      "yamlKey": "json",
+      "type": "JSONEncodingSpec",
+      "required": false,
+      "description": "JSON configures JSON encoding.",
+      "enum": null,
+      "ref": "JSONEncodingSpec",
+      "default": null
+    }
+  ]
+}

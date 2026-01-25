@@ -33,7 +33,20 @@ export default defineConfig({
 				},
 				{
 					label: 'Reference',
-					autogenerate: { directory: 'reference' },
+					items: [
+						{
+							label: 'Collectors',
+							autogenerate: { directory: 'reference/collectors' },
+						},
+						{
+							label: 'Built-in Steps',
+							autogenerate: { directory: 'reference/steps' },
+						},
+						{
+							label: 'Output',
+							autogenerate: { directory: 'reference/output' },
+						},
+					]
 				},
 			],
 		}),

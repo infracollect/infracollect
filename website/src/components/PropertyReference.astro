@@ -1,0 +1,155 @@
+---
+import { marked } from "marked";
+
+interface Field {
+  name: string;
+  yamlKey: string;
+  type: string;
+  required: boolean;
+  description: string;
+  enum: string[] | null;
+  ref: string | null;
+  default: string | null;
+}
+
+interface Schema {
+  name: string;
+  description: string;
+  fields: Field[];
+}
+
+interface Props {
+  schema: Schema;
+  schemas?: Record<string, Schema>;
+  depth?: number;
+}
+
+const { schema, schemas = {}, depth = 3 } = Astro.props;
+const HeadingTag = `h${Math.min(depth, 6)}` as any;
+
+const nestedRefs = schema.fields.filter((f): f is Field & { ref: string } => f.ref !== null && f.ref in schemas).map((f) => ({ field: f, schema: schemas[f.ref] }));
+
+// Parse Markdown with full block support (lists, paragraphs, etc.)
+const md = (text: string | null | undefined) => (text ? marked.parse(text) : "");
+---
+
+<div class="property-reference">
+  {schema.description && <div class="schema-description" set:html={md(schema.description)} />}
+
+  <ul class="property-list">
+    {
+      schema.fields.map((field) => (
+        <li>
+          <code>{field.yamlKey}</code>
+          {" - "}
+          <span class={`badge ${field.required ? "required" : "optional"}`}>{field.required ? "Required" : "Optional"}</span>
+          {field.type && !field.ref && <span class="type">({field.type})</span>}
+          {field.ref && field.ref in schemas &&
+            // prettier-ignore
+            <span>A <a href={`#${field.ref.toLowerCase()}`}><code>{field.ref}</code></a> block as defined below.</span>}
+          {field.ref && !(field.ref in schemas) && (
+            <span class="type">
+              (<code>{field.ref}</code>)
+            </span>
+          )}
+          {field.description && <div class="field-description" set:html={md(field.description)} />}
+          {field.enum && (
+            <span>
+              Must be one of:{" "}
+              {field.enum.map((v, i, arr) => (
+                <>
+                  <code>{v}</code>
+                  {i < arr.length - 1 ? ", " : ""}
+                </>
+              ))}
+              .
+            </span>
+          )}
+          {field.default && (
+            <span>
+              Defaults to <code>{field.default}</code>.
+            </span>
+          )}
+        </li>
+      ))
+    }
+  </ul>
+
+  {
+    nestedRefs.map(({ field, schema: nestedSchema }) => (
+      <div class="nested-section">
+        <HeadingTag id={field.ref!.toLowerCase()}>{field.ref}</HeadingTag>
+        <Astro.self schema={nestedSchema} schemas={schemas} depth={depth + 1} />
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .property-reference {
+    margin: 1rem 0;
+  }
+  .schema-description,
+  .field-description {
+    margin-bottom: 0.5rem;
+  }
+  .schema-description :global(p:last-child),
+  .field-description :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .field-description {
+    margin-top: 0.4rem;
+  }
+  .field-description :global(p:first-child) {
+    margin-top: 0;
+  }
+  .field-description :global(ul) {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+  }
+  .property-list {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+  .property-list li {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+  }
+  .property-list code {
+    font-weight: 600;
+    background: var(--sl-color-gray-6);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+  }
+  .badge {
+    font-size: 0.8em;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+  .badge.required {
+    background: var(--sl-color-green-low);
+    color: var(--sl-color-green-high);
+  }
+  .badge.optional {
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-2);
+  }
+  .type {
+    color: var(--sl-color-gray-3);
+    font-size: 0.9em;
+  }
+  .nested-section {
+    margin-top: 1.5rem;
+    padding-top: 0.75rem;
+  }
+  .nested-section :global(h3),
+  .nested-section :global(h4),
+  .nested-section :global(h5),
+  .nested-section :global(h6) {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+</style>

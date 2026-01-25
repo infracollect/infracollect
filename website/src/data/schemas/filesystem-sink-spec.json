@@ -1,0 +1,26 @@
+{
+  "name": "FilesystemSinkSpec",
+  "description": "FilesystemSinkSpec configures filesystem output.",
+  "fields": [
+    {
+      "name": "Path",
+      "yamlKey": "path",
+      "type": "string",
+      "required": false,
+      "description": "Path is the directory to write files to (default: current directory).",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Prefix",
+      "yamlKey": "prefix",
+      "type": "string",
+      "required": false,
+      "description": "Prefix is prepended to filenames. Supports variables:\n- $JOB_NAME: The job's metadata.name\n- $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z) - recommended\n- $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

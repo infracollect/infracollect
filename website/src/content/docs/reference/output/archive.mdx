@@ -1,0 +1,124 @@
+---
+title: Archive
+description: Reference for archive configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import archiveSpec from '../../../../data/schemas/archive-spec.json';
+
+The archive feature bundles all collected data into a single compressed archive file. This is useful for creating portable snapshots of your infrastructure data.
+
+When enabled, all step outputs are written to the archive, and the archive is then written to the configured sink. This means you can combine archiving with any sink (filesystem, S3, etc.).
+
+## Configuration
+
+<PropertyReference schema={archiveSpec} />
+
+## Compression formats
+
+| Compression | Extension | Description |
+|-------------|-----------|-------------|
+| `gzip` | `.tar.gz` | Good compression ratio, widely supported (default) |
+| `zstd` | `.tar.zst` | Better compression ratio and speed |
+| `none` | `.tar` | No compression, fastest |
+
+## Template variables
+
+The `name` field supports these variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `$JOB_NAME` | The job's `metadata.name` | `my-job` |
+| `$JOB_DATE_ISO8601` | UTC time in ISO8601 basic format | `20240115T143052Z` |
+| `$JOB_DATE_RFC3339` | UTC time in RFC3339 format | `2024-01-15T14:30:52Z` |
+
+The appropriate file extension is automatically appended based on the format and compression.
+
+## Examples
+
+### Basic archive to filesystem
+
+```yaml
+output:
+  archive:
+    format: tar
+    compression: gzip
+  sink:
+    filesystem:
+      path: ./output
+```
+
+Creates `./output/my-job.tar.gz` containing all step outputs.
+
+### Named archive with timestamp
+
+```yaml
+output:
+  archive:
+    format: tar
+    compression: zstd
+    name: $JOB_NAME-$JOB_DATE_ISO8601
+  sink:
+    filesystem:
+      path: ./backups
+```
+
+Creates `./backups/my-job-20240115T143052Z.tar.zst`.
+
+### Archive to S3
+
+```yaml
+output:
+  archive:
+    format: tar
+    compression: gzip
+    name: $JOB_NAME-$JOB_DATE_ISO8601
+  sink:
+    s3:
+      bucket: my-backups
+      region: us-east-1
+      prefix: infracollect/
+```
+
+Uploads `infracollect/my-job-20240115T143052Z.tar.gz` to S3.
+
+### Complete example
+
+```yaml
+kind: CollectJob
+apiVersion: v1
+metadata:
+  name: infrastructure-snapshot
+
+collectors:
+  - id: aws
+    terraform:
+      provider: hashicorp/aws
+      version: "5.0.0"
+      args:
+        region: us-east-1
+
+steps:
+  - id: vpcs
+    collector: aws
+    terraform:
+      data_source: aws_vpcs
+  - id: instances
+    collector: aws
+    terraform:
+      data_source: aws_instances
+
+output:
+  encoding:
+    json:
+      indent: "  "
+  archive:
+    format: tar
+    compression: gzip
+    name: $JOB_NAME-$JOB_DATE_ISO8601
+  sink:
+    s3:
+      bucket: infrastructure-snapshots
+      region: us-east-1
+      prefix: daily/
+```

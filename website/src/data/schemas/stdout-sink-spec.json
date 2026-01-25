@@ -1,0 +1,5 @@
+{
+  "name": "StdoutSinkSpec",
+  "description": "StdoutSinkSpec configures stdout output.",
+  "fields": []
+}

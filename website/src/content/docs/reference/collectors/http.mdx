@@ -1,0 +1,69 @@
+---
+title: HTTP
+description: Reference for the HTTP collector configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import httpAuth from '../../../../data/schemas/http-auth.json';
+import httpBasicAuth from '../../../../data/schemas/http-basic-auth.json';
+import httpCollector from '../../../../data/schemas/http-collector.json';
+import httpGetStep from '../../../../data/schemas/http-get-step.json';
+
+The HTTP collector provides a base configuration for making HTTP requests to REST APIs.
+
+## Configuration
+
+<PropertyReference
+  schema={httpCollector}
+  schemas={{
+    HTTPAuth: httpAuth,
+    HTTPBasicAuth: httpBasicAuth,
+  }}
+/>
+
+## Example
+
+```yaml
+collectors:
+  - id: api
+    http:
+      base_url: https://api.example.com
+      headers:
+        Accept: application/json
+      auth:
+        basic:
+          username: admin
+          password: secret
+      timeout: 30
+```
+
+## Steps
+
+### HTTP GET
+
+Use the HTTP GET step to make requests via the HTTP collector. It is especially useful for
+external or internal services exposing a REST API.
+
+#### Configuration
+
+<PropertyReference
+  schema={httpGetStep}
+  schemas={{
+    HTTPAuth: httpAuth,
+    HTTPBasicAuth: httpBasicAuth,
+  }}
+/>
+
+#### Example
+
+```yaml
+steps:
+  - id: get-users
+    collector: api
+    http_get:
+      path: /users
+      params:
+        page: "1"
+        limit: "10"
+      response_type: json
+```

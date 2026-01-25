@@ -1,0 +1,39 @@
+{
+  "name": "StaticStep",
+  "description": "",
+  "fields": [
+    {
+      "name": "Filepath",
+      "yamlKey": "filepath",
+      "type": "string",
+      "required": false,
+      "description": "Filepath is a local and relative path to a file. Symlinks and directories are not allowed.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Value",
+      "yamlKey": "value",
+      "type": "string",
+      "required": false,
+      "description": "Value is an inline value to use as the static value.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "ParseAs",
+      "yamlKey": "parse_as",
+      "type": "string",
+      "required": false,
+      "description": "ParseAs is the format to parse the value as.",
+      "enum": [
+        "json",
+        "raw"
+      ],
+      "ref": null,
+      "default": null
+    }
+  ]
+}

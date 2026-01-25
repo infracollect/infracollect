@@ -1,0 +1,42 @@
+{
+  "name": "ArchiveSpec",
+  "description": "ArchiveSpec configures bundling output into an archive.",
+  "fields": [
+    {
+      "name": "Format",
+      "yamlKey": "format",
+      "type": "string",
+      "required": true,
+      "description": "Format is the archive format. Currently only \"tar\" is supported.",
+      "enum": [
+        "tar"
+      ],
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Compression",
+      "yamlKey": "compression",
+      "type": "string",
+      "required": false,
+      "description": "Compression algorithm",
+      "enum": [
+        "gzip",
+        "zstd",
+        "none"
+      ],
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Name",
+      "yamlKey": "name",
+      "type": "string",
+      "required": false,
+      "description": "Name is the archive base name. Supports template variables:\n\n- $JOB_NAME: The job's metadata.name\n- $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z)\n- $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)\nThe appropriate file extension (e.g., \".tar.gz\") is automatically appended.\nDefault: \"$JOB_NAME\".",
+      "enum": null,
+      "ref": null,
+      "default": "$JOB_NAME"
+    }
+  ]
+}

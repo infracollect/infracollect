@@ -1,0 +1,36 @@
+{
+  "name": "TerraformCollector",
+  "description": "",
+  "fields": [
+    {
+      "name": "Provider",
+      "yamlKey": "provider",
+      "type": "string",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Version",
+      "yamlKey": "version",
+      "type": "string",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Args",
+      "yamlKey": "args",
+      "type": "map[string]any",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

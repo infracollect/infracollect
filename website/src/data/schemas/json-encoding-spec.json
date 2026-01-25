@@ -1,0 +1,16 @@
+{
+  "name": "JSONEncodingSpec",
+  "description": "JSONEncodingSpec configures JSON encoding.",
+  "fields": [
+    {
+      "name": "Indent",
+      "yamlKey": "indent",
+      "type": "string",
+      "required": false,
+      "description": "Indent specifies indentation. Empty = compact, \"  \" = 2 spaces, \"\\t\" = tabs.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

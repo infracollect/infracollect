@@ -1,0 +1,56 @@
+{
+  "name": "HTTPCollector",
+  "description": "",
+  "fields": [
+    {
+      "name": "BaseURL",
+      "yamlKey": "base_url",
+      "type": "string",
+      "required": false,
+      "description": "BaseURL is the base URL for the HTTP collector, such as \"https://api.example.com\".",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Headers",
+      "yamlKey": "headers",
+      "type": "map[string]string",
+      "required": false,
+      "description": "Headers to include in all requests.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Auth",
+      "yamlKey": "auth",
+      "type": "HTTPAuth",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": "HTTPAuth",
+      "default": null
+    },
+    {
+      "name": "Timeout",
+      "yamlKey": "timeout",
+      "type": "int",
+      "required": false,
+      "description": "Timeout is the request timeout in seconds.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Insecure",
+      "yamlKey": "insecure",
+      "type": "bool",
+      "required": false,
+      "description": "Insecure skips TLS certificate verification.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

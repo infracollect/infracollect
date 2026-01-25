@@ -1,0 +1,11 @@
+{
+  "overrides": [
+    {
+      "files": "*.astro",
+      "options": {
+        "printWidth": 180,
+        "htmlWhitespaceSensitivity": "ignore"
+      }
+    }
+  ]
+}

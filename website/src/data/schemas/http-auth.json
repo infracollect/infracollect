@@ -1,0 +1,16 @@
+{
+  "name": "HTTPAuth",
+  "description": "",
+  "fields": [
+    {
+      "name": "Basic",
+      "yamlKey": "basic",
+      "type": "HTTPBasicAuth",
+      "required": false,
+      "description": "",
+      "enum": null,
+      "ref": "HTTPBasicAuth",
+      "default": null
+    }
+  ]
+}

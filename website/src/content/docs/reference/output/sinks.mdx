@@ -1,0 +1,116 @@
+---
+title: Sinks
+description: Reference for output sink configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import filesystemSink from '../../../../data/schemas/filesystem-sink-spec.json';
+import s3Sink from '../../../../data/schemas/s3-sink-spec.json';
+import s3Credentials from '../../../../data/schemas/s3-credentials.json';
+
+Sinks define where collected data is written. You can write to the local filesystem, S3-compatible object storage, or stdout.
+
+## Filesystem
+
+Write output files to a directory on the local filesystem.
+
+### Configuration
+
+<PropertyReference schema={filesystemSink} />
+
+### Template variables
+
+The `prefix` field supports these variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `$JOB_NAME` | The job's `metadata.name` | `my-job` |
+| `$JOB_DATE_ISO8601` | UTC time in ISO8601 basic format | `20240115T143052Z` |
+| `$JOB_DATE_RFC3339` | UTC time in RFC3339 format | `2024-01-15T14:30:52Z` |
+
+### Example
+
+```yaml
+output:
+  sink:
+    filesystem:
+      path: ./output
+      prefix: $JOB_NAME/$JOB_DATE_RFC3339/
+```
+
+This writes files to `./output/my-job/2024-01-15T14:30:52Z/<step-id>.json`.
+
+---
+
+## S3
+
+Write output to S3-compatible object storage. Supports AWS S3, Cloudflare R2, MinIO, and other S3-compatible services.
+
+### Configuration
+
+<PropertyReference
+  schema={s3Sink}
+  schemas={{
+    S3Credentials: s3Credentials,
+  }}
+/>
+
+### Template variables
+
+The `prefix` field supports the same variables as the filesystem sink. For S3 keys, `$JOB_DATE_ISO8601` is recommended since RFC3339 contains colons that require URL encoding.
+
+### Examples
+
+#### AWS S3
+
+```yaml
+output:
+  sink:
+    s3:
+      bucket: my-bucket
+      region: us-east-1
+      prefix: infracollect/$JOB_NAME/$JOB_DATE_ISO8601/
+```
+
+Uses the default AWS SDK credential chain (environment variables, shared credentials file, IAM role, etc.).
+
+#### MinIO
+
+```yaml
+output:
+  sink:
+    s3:
+      bucket: my-bucket
+      endpoint: http://localhost:9000
+      force_path_style: true
+      credentials:
+        access_key_id: minioadmin
+        secret_access_key: minioadmin
+      prefix: $JOB_NAME/
+```
+
+#### Cloudflare R2
+
+```yaml
+output:
+  sink:
+    s3:
+      bucket: my-bucket
+      endpoint: https://<account-id>.r2.cloudflarestorage.com
+      credentials:
+        access_key_id: <r2-access-key>
+        secret_access_key: <r2-secret-key>
+      prefix: $JOB_NAME/
+```
+
+---
+
+## Stdout
+
+Write output to standard output. Useful for piping to other tools or debugging.
+
+```yaml
+output:
+  sink:
+    stdout: {}
+```

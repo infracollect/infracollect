@@ -27,6 +27,11 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Verify generated docs are up to date
+        run: |
+          go run ./scripts/gen-docs.go
+          git diff --exit-code website/src/data/schemas/ || { echo "::error::Generated documentation is out of date. Run 'go run ./scripts/gen-docs.go' and commit the changes."; exit 1; }
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
