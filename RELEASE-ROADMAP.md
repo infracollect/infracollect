@@ -34,8 +34,8 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Project Website (GitHub Pages)
 
-- [ ] **Static site generator**: Set up with Hugo, MkDocs, or Docusaurus
-- [ ] **Auto-deploy**: Deploy to gh-pages on release or main push
+- [x] **Static site generator**: Set up with Starlight
+- [x] **Auto-deploy**: Deploy to gh-pages on release or main push
 - [ ] **Custom domain** (optional): Configure if desired
 
 ### Documentation Content
@@ -60,9 +60,8 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Linting & Formatting
 
-- [ ] **golangci-lint config**: Create `.golangci.yml` with appropriate linters
-- [ ] **gofumpt**: Enforce stricter formatting
-- [ ] **Pre-commit hooks**: Set up with pre-commit framework
+- [x] **golangci-lint config**: Create `.golangci.yml` with appropriate linters
+- [x] **Pre-commit hooks**: Set up with pre-commit framework
 
 ### Testing
 
@@ -74,7 +73,7 @@ This document tracks work needed to get the project into production-ready shape.
 ### Code Organization
 
 - [x] **Mise**: Add targets for common tasks (build, test, lint, generate)
-- [ ] **go generate**: Document and automate code generation steps
+- [x] **go generate**: Document and automate code generation steps
 
 ---
 
@@ -92,8 +91,7 @@ This document tracks work needed to get the project into production-ready shape.
 ### Dependency Management
 
 - [ ] **Dependabot or Renovate**: Automated dependency updates
-- [ ] **go.mod tidy**: Ensure clean dependency tree
-- [ ] **Vendor** (optional): Decide on vendoring strategy
+- [x] **go.mod tidy**: Ensure clean dependency tree
 
 ### README Improvements
 
@@ -101,22 +99,6 @@ This document tracks work needed to get the project into production-ready shape.
 - [ ] **Installation instructions**: go install, binary download, Docker
 - [ ] **Quick start example**: Minimal working example
 - [ ] **Feature list**: Overview of capabilities
-
----
-
-## Distribution
-
-### Package Managers
-
-- [ ] **Homebrew tap**: Create formula for macOS/Linux installation
-- [ ] **AUR package** (optional): Arch Linux package
-- [ ] **Scoop manifest** (optional): Windows package manager
-- [ ] **Nix flake** (optional): Nix package
-
-### Container Registry
-
-- [ ] **Docker Hub** (optional): Mirror to Docker Hub
-- [ ] **Versioned tags**: Tag images with semver (v1.0.0, v1.0, v1, latest)
 
 ---
 

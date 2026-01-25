@@ -48,6 +48,10 @@ GitHub Actions workflow with:
 
 <!-- Core features and important improvements -->
 
+### [ ] Validate command
+
+Add a `validate` command to validate the job file.
+
 ### [ ] Environment variables
 
 - Support for environment variables in the job file
@@ -78,7 +82,8 @@ Improve validation error messages to be more actionable:
 
 ### [ ] Subprocess collector
 
-The subprocess collector is a collector that runs a subprocess and captures the output, this will enable unlimited possibilities for collectors.
+The subprocess collector is a collector that runs a subprocess and captures the output, this will enable unlimited
+possibilities for collectors.
 
 ---
 
@@ -88,7 +93,8 @@ The subprocess collector is a collector that runs a subprocess and captures the 
 
 ### [ ] Adopt builder pattern for pipeline
 
-The pipeline is currently built using a series of functions that build the different components of the pipeline. This is not ideal because it makes it difficult to understand the pipeline and to modify it.
+The pipeline is currently built using a series of functions that build the different components of the pipeline. This is
+not ideal because it makes it difficult to understand the pipeline and to modify it.
 
 ### [ ] Advanced DAG engine
 
@@ -103,7 +109,8 @@ Nested steps would be useful to transform the data from one step to the next.
 
 ### [ ] Structured value object for static steps
 
-Add `value_obj` field to static steps to allow passing structured data directly as YAML objects, avoiding string escaping:
+Add `value_obj` field to static steps to allow passing structured data directly as YAML objects, avoiding string
+escaping:
 
 ```yaml
 - id: config
@@ -120,7 +127,8 @@ Add `parse_as: yaml` option for static steps to support YAML files. Auto-detect 
 
 ### [ ] Glob patterns for static steps
 
-Allow `filepath: "data/*.json"` to load multiple files in a single static step. Each matched file becomes a separate entry in the result.
+Allow `filepath: "data/*.json"` to load multiple files in a single static step. Each matched file becomes a separate
+entry in the result.
 
 ### [ ] More template pattern
 
