@@ -1,4 +1,4 @@
-<center><img src="./website/public/full-logo.png" alt="infracollect" /></center>
+<p align="center"><img src="./website/public/full-logo.png" alt="infracollect" /></p>
 
 **Collect infrastructure data from anywhere** — cloud providers, Kubernetes clusters, REST APIs — all with simple YAML configuration.
 
