@@ -1,3 +1,5 @@
+//go:build ignore
+
 // gen-docs generates JSON schema documentation from Go struct definitions.
 // It parses apis/v1/*.go files and outputs JSON files to website/src/data/schemas/.
 package main

@@ -7,6 +7,7 @@ golangci-lint = "v2.8.0"
 prettier = "latest"
 rumdl = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
+actionlint = "latest"
 
 [tasks.pre-commit]
 run = "hk run pre-commit"
@@ -22,7 +23,12 @@ run = "go run scripts/gen-docs.go"
 sources = ["apis/v1/*.go", "scripts/gen-docs.go"]
 outputs = ["website/src/data/schemas/*.json"]
 
+[tasks.gen-cli-docs]
+run = "go run scripts/gen-cli-docs.go"
+sources = ["cmd/infracollect/*.go", "scripts/gen-cli-docs.go"]
+outputs = ["website/src/content/docs/reference/cli/*.md"]
+
 [tasks.docs]
 run = "npm run dev -- --open"
 dir = "website"
-depends = ["gen-docs"]
+depends = ["gen-docs", "gen-cli-docs"]

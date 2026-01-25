@@ -32,6 +32,11 @@ jobs:
           go run ./scripts/gen-docs.go
           git diff --exit-code website/src/data/schemas/ || { echo "::error::Generated documentation is out of date. Run 'go run ./scripts/gen-docs.go' and commit the changes."; exit 1; }
 
+      - name: Verify generated CLI docs are up to date
+        run: |
+          go run ./scripts/gen-cli-docs.go
+          git diff --exit-code website/src/content/docs/reference/cli/ || { echo "::error::Generated CLI documentation is out of date. Run 'go run ./scripts/gen-cli-docs.go' and commit the changes."; exit 1; }
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

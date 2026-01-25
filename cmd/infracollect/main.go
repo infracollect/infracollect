@@ -18,8 +18,9 @@ var loggerDeferFunc func() error
 
 func main() {
 	app := &cli.Command{
-		Name:  "infracollect",
-		Usage: "Infracollect is a tool to collect infrastructure data",
+		Name:    "infracollect",
+		Usage:   "Infracollect is a tool to collect infrastructure data",
+		Version: Version,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "debug",
@@ -42,6 +43,7 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			collectCommand,
+			versionCommand,
 		},
 		Before: func(ctx context.Context, command *cli.Command) (context.Context, error) {
 			logger, _, err := createLogger(command.Bool("debug"), command.String("log-level"))
