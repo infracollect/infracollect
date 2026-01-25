@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func readTarEntries(r io.Reader, compression string) (map[string]string, error) 
 		if err != nil {
 			return nil, err
 		}
-		defer gr.Close()
+		defer lo.Must0(gr.Close())
 		decompressed = gr
 	case "zstd":
 		zr, err := zstd.NewReader(r)

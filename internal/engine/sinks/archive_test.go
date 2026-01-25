@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/adrien-f/infracollect/internal/engine/archivers"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +47,7 @@ func readGzipTarToMap(data []byte) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer gr.Close()
+	defer lo.Must0(gr.Close())
 	tr := tar.NewReader(gr)
 	found := make(map[string]string)
 	for {
