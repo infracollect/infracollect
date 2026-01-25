@@ -4,6 +4,8 @@ import { defineConfig } from 'astro/config';
 
 // https://astro.build/config
 export default defineConfig({
+	site: "https://infracollect.github.io",
+	base: "/infracollect",
 	integrations: [
 		starlight({
 			title: 'infracollect',
