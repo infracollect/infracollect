@@ -1,0 +1,11 @@
+[global]
+force_exclude = true  # Enforce excludes even for explicitly provided files
+
+[per-file-ignores]
+"README.md" = ["MD033", "MD041", "MD013"]
+
+[MD013]
+line-length = 120
+code-blocks = false
+tables = false
+reflow = true  # Enable automatic line wrapping (required for --fix)
