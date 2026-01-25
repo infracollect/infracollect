@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine"
 )
 
 // ArchiveSink wraps a sink and collects all writes into an archive.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine"
 )
 
 // TemplateVars contains variables that can be expanded in template strings.

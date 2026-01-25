@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine"
 	"github.com/klauspost/compress/zstd"
 )
 

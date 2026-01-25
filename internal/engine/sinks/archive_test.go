@@ -8,7 +8,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/adrien-f/infracollect/internal/engine/archivers"
+	"github.com/infracollect/infracollect/internal/engine/archivers"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

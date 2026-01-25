@@ -1,4 +1,4 @@
-module github.com/adrien-f/infracollect
+module github.com/infracollect/infracollect
 
 go 1.25.5
 

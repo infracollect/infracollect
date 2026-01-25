@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine"
 	"github.com/spf13/afero"
 )
 

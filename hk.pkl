@@ -12,7 +12,10 @@ local linters = new Mapping<String, Step> {
   }
 
   ["go-imports"] = Builtins.go_imports
-  ["golangci-lint"] = Builtins.golangci_lint
+  ["golangci-lint"] = (Builtins.golangci_lint) {
+    check = "golangci-lint run --fix=false"
+    fix = "golangci-lint run --fix"
+  }
   ["gen-docs"] {
     check = "go run scripts/gen-docs.go && git diff --exit-code website/src/data/schemas/"
     fix = "go run scripts/gen-docs.go"

@@ -19,7 +19,7 @@ Specific collectors will be added over time to support more data sources nativel
 ### Installation
 
 ```bash
-go install github.com/adrien-f/infracollect/cmd/infracollect@latest
+go install github.com/infracollect/infracollect/cmd/infracollect@latest
 ```
 
 ### Your First Collection Job

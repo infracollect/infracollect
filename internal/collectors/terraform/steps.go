@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adrien-f/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine"
 )
 
 const (

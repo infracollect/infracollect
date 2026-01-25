@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	v1 "github.com/adrien-f/infracollect/apis/v1"
-	"github.com/adrien-f/infracollect/internal/engine"
 	"github.com/go-playground/validator/v10"
 	"github.com/goccy/go-yaml"
+	v1 "github.com/infracollect/infracollect/apis/v1"
+	"github.com/infracollect/infracollect/internal/engine"
 	"go.uber.org/zap"
 )
 

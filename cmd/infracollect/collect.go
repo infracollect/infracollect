@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adrien-f/infracollect/internal/runner"
+	"github.com/infracollect/infracollect/internal/runner"
 	"github.com/urfave/cli/v3"
 )
 

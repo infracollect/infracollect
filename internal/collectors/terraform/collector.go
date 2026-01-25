@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/adrien-f/infracollect/internal/engine"
 	tfclient "github.com/adrien-f/tf-data-client"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
+	"github.com/infracollect/infracollect/internal/engine"
 )
 
 const (

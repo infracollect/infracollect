@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/adrien-f/infracollect/internal/engine"
 	"github.com/hashicorp/go-cleanhttp"
+	"github.com/infracollect/infracollect/internal/engine"
 	"github.com/samber/lo"
 )
 

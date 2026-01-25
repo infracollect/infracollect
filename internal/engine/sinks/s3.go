@@ -6,12 +6,12 @@ import (
 	"io"
 	"path"
 
-	"github.com/adrien-f/infracollect/internal/engine"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/infracollect/infracollect/internal/engine"
 )
 
 // S3Uploader is an interface for uploading objects to S3.
