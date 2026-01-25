@@ -1,0 +1,80 @@
+---
+title: infracollect
+description: Collect infrastructure data from anywhere
+template: splash
+hero:
+  title: <strong>infra</strong><span style="font-weight:lighter">collect</span>
+  tagline: Collect all your infrastructure data from anywhere
+  image:
+    file: ../../assets/infracollect.svg
+  actions:
+    - text: Getting started
+      link: /guides/install/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://starlight.astro.build
+      icon: github
+      variant: minimal
+---
+
+import logo from "../../assets/infracollect.png";
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Quick intro
+
+Install infracollect:
+
+```bash
+go install github.com/infracollect/infracollect/cmd/infracollect@latest
+```
+
+Create a `job.yaml` file:
+
+```yaml
+kind: CollectJob
+metadata:
+  name: test
+spec:
+  collectors:
+    - id: kind
+      terraform:
+        provider: hashicorp/kubernetes
+        args:
+          config_path: ~/.kube/config
+          config_context: kind-kind
+  steps:
+    - id: deployments
+      collector: kind
+      terraform_datasource:
+        name: kubernetes_resources
+        args:
+          api_version: apps/v1
+          kind: Deployment
+          namespace: kube-system
+```
+
+And run the job:
+
+```bash
+infracollect collect job.yaml
+```
+
+Enjoy collecting all your infrastructure data and have fun processing it 🎉!
+
+## Reference
+
+<CardGrid>
+  <Card title="Collectors" icon="seti:json">
+    Edit `src/content/docs/index.mdx` to see this page change.
+  </Card>
+  <Card title="Transformers" icon="list-format">
+    Delete `template: splash` in `src/content/docs/index.mdx` to display a
+    sidebar on this page.
+  </Card>
+  <Card title="Sinks" icon="seti:config">
+    Add Markdown or MDX files to `src/content/docs` to create new pages.
+  </Card>
+  <Card title="Read the docs" icon="open-book">
+    Learn more in [the Starlight Docs](https://starlight.astro.build/).
+  </Card>
+</CardGrid>
