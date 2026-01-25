@@ -9,3 +9,9 @@ rumdl = "latest"
 
 [tasks.pre-commit]
 run = "hk run pre-commit"
+
+[tasks]
+build = "go build ./cmd/infracollect"
+test = "go test ./..."
+lint = "golangci-lint run"
+vuln = "govulncheck ./..."
