@@ -15,3 +15,13 @@ build = "go build ./cmd/infracollect"
 test = "go test ./..."
 lint = "golangci-lint run"
 vuln = "govulncheck ./..."
+
+[tasks.gen-docs]
+run = "go run scripts/gen-docs.go"
+sources = ["apis/v1/*.go", "scripts/gen-docs.go"]
+outputs = ["website/src/data/schemas/*.json"]
+
+[tasks.docs]
+run = "npm run dev -- --open"
+dir = "website"
+depends = ["gen-docs"]
