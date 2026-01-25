@@ -1,4 +1,4 @@
-# infracollect
+<center><img src="./website/public/full-logo.png" alt="infracollect" /></center>
 
 **Collect infrastructure data from anywhere** — cloud providers, Kubernetes clusters, REST APIs — all with simple YAML configuration.
 
@@ -135,7 +135,7 @@ spec:
   output:
     encoding:
       json:
-        indent: "  "  # Pretty-print the JSON
+        indent: "  " # Pretty-print the JSON
     sink:
       filesystem:
         path: ./output
@@ -158,7 +158,7 @@ spec:
         indent: "  "
     archive:
       format: tar
-      compression: gzip   # or zstd, none
+      compression: gzip # or zstd, none
       name: $JOB_NAME-$JOB_DATE_ISO8601
     sink:
       filesystem:
@@ -186,12 +186,12 @@ spec:
 
 ## Key Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **CollectJob** | A YAML file defining what data to collect and where to send it |
-| **Collector** | A data source configuration (Terraform provider or HTTP client) |
-| **Step** | A single data collection operation using a collector |
-| **Output** | Where and how to write collected data (stdout, filesystem, S3); optional archive (tar.gz/tar.zst) |
+| Concept        | Description                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| **CollectJob** | A YAML file defining what data to collect and where to send it                                    |
+| **Collector**  | A data source configuration (Terraform provider or HTTP client)                                   |
+| **Step**       | A single data collection operation using a collector                                              |
+| **Output**     | Where and how to write collected data (stdout, filesystem, S3); optional archive (tar.gz/tar.zst) |
 
 ## Supported Collectors
 
@@ -208,6 +208,7 @@ Use any Terraform provider to collect infrastructure data:
 ### HTTP
 
 Query any REST API with built-in support for:
+
 - Basic authentication
 - Custom headers
 - Query parameters
@@ -215,11 +216,11 @@ Query any REST API with built-in support for:
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Job Specification](docs/COLLECT_PIPELINE_SPEC.md) | Complete YAML schema reference |
-| [Design](docs/DESIGN.md) | Architecture and design decisions |
-| [Architecture](docs/ARCHITECTURE.md) | System components |
+| Document                                           | Description                       |
+| -------------------------------------------------- | --------------------------------- |
+| [Job Specification](docs/COLLECT_PIPELINE_SPEC.md) | Complete YAML schema reference    |
+| [Design](docs/DESIGN.md)                           | Architecture and design decisions |
+| [Architecture](docs/ARCHITECTURE.md)               | System components                 |
 
 ## Project Status
 
