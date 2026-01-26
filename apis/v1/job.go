@@ -36,7 +36,7 @@ type Step struct {
 type TerraformDataSourceStep struct {
 	// Name of the provider data source to use.
 	Name string         `yaml:"name" json:"name"`
-	Args map[string]any `yaml:"args" json:"args" template:""`
+	Args map[string]any `yaml:"args" json:"args"`
 }
 
 type HTTPCollector struct {
