@@ -52,7 +52,7 @@ GitHub Actions workflow with:
 
 Add a `validate` command to validate the job file.
 
-### [ ] Environment variables
+### [x] Environment variables
 
 - Support for environment variables in the job file
 
@@ -145,3 +145,4 @@ Test with Kind, RustFS, etc... for the different collectors.
 <!-- Move completed items here with completion date -->
 
 - [x] **Archive support** - Added .tar.gz/tar.zst compression via `output.archive` configuration (completed 2026-01-24)
+- [x] **Environment variables** - Support for environment variables in job files via `--allowed-env` flag and template expansion (completed 2026-01-26)
