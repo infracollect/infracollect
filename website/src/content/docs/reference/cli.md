@@ -25,6 +25,7 @@ COMMANDS:
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging
    --log-level string, -l string  Log Level (debug, info, warn, error, fatal) (default: "info")
+   --log-format string            Log format (json, console) (default: "console")
    --help, -h                     show help
    --version, -v                  print the version
 ```
@@ -45,6 +46,7 @@ OPTIONS:
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging
    --log-level string, -l string  Log Level (debug, info, warn, error, fatal) (default: "info")
+   --log-format string            Log format (json, console) (default: "console")
 ```
 
 ## version
@@ -62,4 +64,5 @@ OPTIONS:
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging
    --log-level string, -l string  Log Level (debug, info, warn, error, fatal) (default: "info")
+   --log-format string            Log format (json, console) (default: "console")
 ```

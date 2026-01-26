@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	validation "github.com/urfave/cli-validation"
 	"github.com/urfave/cli/v3"
 )
 
@@ -40,13 +41,19 @@ func main() {
 					return nil
 				},
 			},
+			&cli.StringFlag{
+				Name:      "log-format",
+				Value:     "console",
+				Usage:     "Log format (json, console)",
+				Validator: validation.Enum("json", "console"),
+			},
 		},
 		Commands: []*cli.Command{
 			collectCommand,
 			versionCommand,
 		},
 		Before: func(ctx context.Context, command *cli.Command) (context.Context, error) {
-			logger, _, err := createLogger(command.Bool("debug"), command.String("log-level"))
+			logger, _, err := createLogger(command.Bool("debug"), command.String("log-level"), command.String("log-format"))
 			if err != nil {
 				return nil, err
 			}

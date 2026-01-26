@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type loggerCtxKeyType struct{}
 
 var loggerCtxKey = loggerCtxKeyType{}
 
-func createLogger(debug bool, logLevel string) (logger *zap.Logger, level zap.AtomicLevel, err error) {
+func createLogger(debug bool, logLevel string, logFormat string) (logger *zap.Logger, level zap.AtomicLevel, err error) {
 	level, err = zap.ParseAtomicLevel(logLevel)
 	if err != nil {
 		return nil, zap.NewAtomicLevel(), fmt.Errorf("invalid log level %s: %w", logLevel, err)
@@ -26,6 +27,10 @@ func createLogger(debug bool, logLevel string) (logger *zap.Logger, level zap.At
 		loggerCfg.DisableStacktrace = false
 		loggerCfg.Level = level
 	}
+
+	loggerCfg.Encoding = logFormat
+	loggerCfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	loggerCfg.EncoderConfig.TimeKey = "timestamp"
 
 	logger, err = loggerCfg.Build()
 	if err != nil {
