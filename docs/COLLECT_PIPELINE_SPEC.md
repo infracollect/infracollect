@@ -2,7 +2,8 @@
 
 ## Overview
 
-A `CollectJob` is a YAML document that defines a collection job for gathering infrastructure resources. It supports multiple collector types:
+A `CollectJob` is a YAML document that defines a collection job for gathering infrastructure resources. It supports
+multiple collector types:
 
 - **Terraform**: Uses Terraform providers through the `tf-data-client` library
 - **HTTP**: Makes HTTP requests to REST APIs
@@ -10,14 +11,19 @@ A `CollectJob` is a YAML document that defines a collection job for gathering in
 
 ### Output Behavior
 
-Results are written as **one file per step** with filenames `{step-id}.{extension}` (e.g., `deployments.json`). Each result includes:
+Results are written as **one file per step** with filenames `{step-id}.{extension}` (e.g., `deployments.json`). Each
+result includes:
 
 - `id`: The step identifier that produced this result
 - `data`: The actual result data from the data source
 
-**Without archive**: When writing to stdout, each result is a separate line; when writing to the filesystem or S3, each result is its own file.
+**Without archive**: When writing to stdout, each result is a separate line; when writing to the filesystem or S3, each
+result is its own file.
 
-**With archive**: When `output.archive` is set, all step outputs are collected into a single tar archive (with optional gzip or zstd compression) before being written to the sink. The sink receives one file (e.g., `my-job-20260124T120000Z.tar.gz`) containing `users.json`, `posts.json`, etc. Archive requires a filesystem or S3 sink; stdout cannot be used with archive.
+**With archive**: When `output.archive` is set, all step outputs are collected into a single tar archive (with optional
+gzip or zstd compression) before being written to the sink. The sink receives one file (e.g.,
+`my-job-20260124T120000Z.tar.gz`) containing `users.json`, `posts.json`, etc. Archive requires a filesystem or S3 sink;
+stdout cannot be used with archive.
 
 ## Schema
 
@@ -119,7 +125,8 @@ spec:
 
 - **Type**: `array`
 - **Description**: List of collector definitions
-- **Constraints**: Required if any steps use `terraform_datasource` or `http_get`. Can be empty or omitted if all steps are `static`.
+- **Constraints**: Required if any steps use `terraform_datasource` or `http_get`. Can be empty or omitted if all steps
+  are `static`.
 - **Uniqueness**: Each collector must have a unique `id`
 
 ##### `spec.steps` (required)
@@ -134,7 +141,8 @@ spec:
 - **Type**: `object`
 - **Description**: Configures how results are written
 - **Default**: If not specified, results are written to stdout as compact JSON (one result per line)
-- **Behavior**: Results are always written as one file per step, with filenames `{step-id}.{extension}` (e.g., `deployments.json`)
+- **Behavior**: Results are always written as one file per step, with filenames `{step-id}.{extension}` (e.g.,
+  `deployments.json`)
 
 ### Output Specification
 
@@ -167,7 +175,9 @@ spec:
 #### `spec.output.archive` (optional)
 
 - **Type**: `object`
-- **Description**: Bundles all step outputs into a single tar archive before writing to the sink. Each step's encoded result is added as a file in the archive (e.g., `users.json`, `posts.json`). The archive is written as one file to the underlying sink (filesystem or S3).
+- **Description**: Bundles all step outputs into a single tar archive before writing to the sink. Each step's encoded
+  result is added as a file in the archive (e.g., `users.json`, `posts.json`). The archive is written as one file to the
+  underlying sink (filesystem or S3).
 - **Requirement**: Archive cannot be used with stdout; use a filesystem or S3 sink.
 - **Default**: If not specified, outputs are written as separate files (one per step).
 
@@ -191,7 +201,8 @@ spec:
 ##### `spec.output.archive.name` (optional)
 
 - **Type**: `string`
-- **Description**: Base name for the archive file. The correct extension (`.tar.gz`, `.tar.zst`, or `.tar`) is appended automatically.
+- **Description**: Base name for the archive file. The correct extension (`.tar.gz`, `.tar.zst`, or `.tar`) is appended
+  automatically.
 - **Default**: `$JOB_NAME`
 - **Variables**: Supports variable substitution:
   - `$JOB_NAME`: The job's `metadata.name`
@@ -220,8 +231,11 @@ spec:
 
 - **Type**: `object`
 - **Description**: Write output to files on the local filesystem
-- **File Naming**: Without archive, each step's output is written to a file named `{step-id}.{extension}` (e.g., `deployments.json`). With `output.archive`, the sink receives a single archive file (e.g., `my-job-20260124T120000Z.tar.gz`) containing all step outputs.
-- **Location**: Files are written to `{path}/{prefix}/` if both are specified, or just `{path}/` if only path is specified
+- **File Naming**: Without archive, each step's output is written to a file named `{step-id}.{extension}` (e.g.,
+  `deployments.json`). With `output.archive`, the sink receives a single archive file (e.g.,
+  `my-job-20260124T120000Z.tar.gz`) containing all step outputs.
+- **Location**: Files are written to `{path}/{prefix}/` if both are specified, or just `{path}/` if only path is
+  specified
 
 ##### `spec.output.sink.filesystem.path` (optional)
 
@@ -236,7 +250,8 @@ spec:
 - **Description**: Prefix prepended to the path, useful for organizing outputs by job name and date
 - **Variables**: Supports variable substitution:
   - `$JOB_NAME`: Replaced with the job's `metadata.name`
-  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) - **recommended**
+  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) -
+    **recommended**
   - `$JOB_DATE_RFC3339`: Replaced with current UTC time in RFC3339 format (e.g., `2026-01-19T08:18:15Z`)
 - **Examples**:
   - `prefix: $JOB_NAME/$JOB_DATE_ISO8601` → `test/20260119T081815Z/`
@@ -246,8 +261,11 @@ spec:
 
 - **Type**: `object`
 - **Description**: Write output to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, etc.)
-- **File Naming**: Without archive, each step's output is written as an object with key `{prefix}/{step-id}.{extension}` (e.g., `exports/deployments.json`). With `output.archive`, the sink receives a single archive object (e.g., `{prefix}/my-job-20260124T120000Z.tar.gz`).
-- **Credentials**: Uses AWS SDK credential chain by default (env vars, shared credentials file, IAM role). Explicit credentials can be provided via the `credentials` field.
+- **File Naming**: Without archive, each step's output is written as an object with key `{prefix}/{step-id}.{extension}`
+  (e.g., `exports/deployments.json`). With `output.archive`, the sink receives a single archive object (e.g.,
+  `{prefix}/my-job-20260124T120000Z.tar.gz`).
+- **Credentials**: Uses AWS SDK credential chain by default (env vars, shared credentials file, IAM role). Explicit
+  credentials can be provided via the `credentials` field.
 
 ##### `spec.output.sink.s3.bucket` (required)
 
@@ -277,9 +295,11 @@ spec:
 - **Description**: Prefix prepended to object keys, useful for organizing outputs
 - **Variables**: Supports variable substitution:
   - `$JOB_NAME`: Replaced with the job's `metadata.name`
-  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) - **recommended**
+  - `$JOB_DATE_ISO8601`: Replaced with current UTC time in ISO8601 basic format (e.g., `20260119T081815Z`) -
+    **recommended**
   - `$JOB_DATE_RFC3339`: Replaced with current UTC time in RFC3339 format (e.g., `2026-01-19T08:18:15Z`)
-- **Note**: `$JOB_DATE_ISO8601` is recommended for S3 keys because RFC3339 contains colons (`:`) which require URL encoding
+- **Note**: `$JOB_DATE_ISO8601` is recommended for S3 keys because RFC3339 contains colons (`:`) which require URL
+  encoding
 - **Examples**:
   - `prefix: $JOB_NAME/$JOB_DATE_ISO8601` → `my-job/20260119T081815Z/`
   - `prefix: exports` → `exports/`
@@ -295,7 +315,8 @@ spec:
 
 - **Type**: `object`
 - **Description**: Explicit AWS credentials
-- **Note**: If not specified, uses the AWS SDK credential chain (environment variables, shared credentials file, IAM role)
+- **Note**: If not specified, uses the AWS SDK credential chain (environment variables, shared credentials file, IAM
+  role)
 
 ##### `spec.output.sink.s3.credentials.access_key_id` (required when credentials is specified)
 
@@ -402,7 +423,8 @@ spec:
 
 - **Type**: `string`
 - **Description**: ID of the collector to use for this step
-- **Constraints**: Required for `terraform_datasource` and `http_get` steps. Must reference a collector ID defined in `spec.collectors` of the matching type. Not used for `static` steps.
+- **Constraints**: Required for `terraform_datasource` and `http_get` steps. Must reference a collector ID defined in
+  `spec.collectors` of the matching type. Not used for `static` steps.
 
 #### `steps[].terraform_datasource` (optional)
 
@@ -467,15 +489,18 @@ spec:
 
 - **Type**: `string`
 - **Description**: Relative path to a local file to read
-- **Constraints**: Must be a relative path within the working directory. Path traversal (e.g., `../`) is blocked for security.
-- **Note**: Mutually exclusive with `value`. Files with `.json` extension are automatically parsed as JSON unless `parse_as: raw` is specified.
+- **Constraints**: Must be a relative path within the working directory. Path traversal (e.g., `../`) is blocked for
+  security.
+- **Note**: Mutually exclusive with `value`. Files with `.json` extension are automatically parsed as JSON unless
+  `parse_as: raw` is specified.
 - **Examples**: `data/config.json`, `inventory.txt`, `templates/base.yaml`
 
 ##### `steps[].static.value` (optional)
 
 - **Type**: `string`
 - **Description**: Inline value to use as the step's data
-- **Note**: Mutually exclusive with `filepath`. Useful for embedding small JSON objects or configuration directly in the job file.
+- **Note**: Mutually exclusive with `filepath`. Useful for embedding small JSON objects or configuration directly in the
+  job file.
 - **Examples**: `{"key": "value"}`, `plain text content`
 
 ##### `steps[].static.parse_as` (optional)
@@ -485,7 +510,8 @@ spec:
 - **Values**:
   - `json`: Parse content as JSON and return the parsed object
   - `raw`: Return content as a string without parsing
-- **Default**: For files, auto-detects based on extension (`.json` files are parsed as JSON, others as raw). For inline values, defaults to `raw` unless explicitly set to `json`.
+- **Default**: For files, auto-detects based on extension (`.json` files are parsed as JSON, others as raw). For inline
+  values, defaults to `raw` unless explicitly set to `json`.
 
 ## Validation Rules
 
@@ -877,7 +903,8 @@ spec:
         prefix: $JOB_NAME/$JOB_DATE_RFC3339
 ```
 
-This produces `./output/archive-test/2026-01-24T12:00:00Z/archive-test-20260124T120000Z.tar.gz` containing `users.json` and `posts.json`. Use `compression: zstd` for `.tar.zst` or `compression: none` for `.tar`.
+This produces `./output/archive-test/2026-01-24T12:00:00Z/archive-test-20260124T120000Z.tar.gz` containing `users.json`
+and `posts.json`. Use `compression: zstd` for `.tar.zst` or `compression: none` for `.tar`.
 
 #### Default Output (Compact JSON to Stdout)
 
@@ -1023,7 +1050,8 @@ Common arguments:
 
 ## Environment Variables
 
-Provider arguments can reference environment variables using `${VARIABLE_NAME}` syntax. The system will substitute these values at runtime.
+Provider arguments can reference environment variables using `${VARIABLE_NAME}` syntax. The system will substitute these
+values at runtime.
 
 ## Best Practices
 
@@ -1033,9 +1061,17 @@ Provider arguments can reference environment variables using `${VARIABLE_NAME}` 
 4. **Versioning**: Pin provider versions for reproducibility
 5. **Documentation**: Add descriptions to complex pipelines
 6. **Validation**: Validate pipelines before execution
-7. **Output Format**: Use pretty-printed JSON (`indent: "  "`) for human-readable output, compact JSON for machine processing
-8. **Output Destination**: Use `filesystem` for local development and debugging, `stdout` for piping to other tools or streaming results, `s3` for cloud storage
-9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_ISO8601` variables to organize outputs by job and timestamp. Prefer `$JOB_DATE_ISO8601` over `$JOB_DATE_RFC3339` as it avoids colons which require URL encoding
-10. **Result Structure**: Each result includes an `id` field identifying the step that produced it, along with the `data` field containing the actual result data
-11. **S3 Credentials**: For AWS S3, prefer using IAM roles or environment variables over explicit credentials in the job file. Use explicit credentials only for non-AWS S3-compatible services (R2, MinIO)
-12. **Archive**: Use `output.archive` to produce a single `.tar.gz` or `.tar.zst` file when you need to ship or store a complete snapshot. Archive requires a filesystem or S3 sink. Use `name: $JOB_NAME-$JOB_DATE_ISO8601` for unique, sortable filenames
+7. **Output Format**: Use pretty-printed JSON (`indent: "  "`) for human-readable output, compact JSON for machine
+   processing
+8. **Output Destination**: Use `filesystem` for local development and debugging, `stdout` for piping to other tools or
+   streaming results, `s3` for cloud storage
+9. **File Organization**: Use the `prefix` field with `$JOB_NAME` and `$JOB_DATE_ISO8601` variables to organize outputs
+   by job and timestamp. Prefer `$JOB_DATE_ISO8601` over `$JOB_DATE_RFC3339` as it avoids colons which require URL
+   encoding
+10. **Result Structure**: Each result includes an `id` field identifying the step that produced it, along with the
+    `data` field containing the actual result data
+11. **S3 Credentials**: For AWS S3, prefer using IAM roles or environment variables over explicit credentials in the job
+    file. Use explicit credentials only for non-AWS S3-compatible services (R2, MinIO)
+12. **Archive**: Use `output.archive` to produce a single `.tar.gz` or `.tar.zst` file when you need to ship or store a
+    complete snapshot. Archive requires a filesystem or S3 sink. Use `name: $JOB_NAME-$JOB_DATE_ISO8601` for unique,
+    sortable filenames

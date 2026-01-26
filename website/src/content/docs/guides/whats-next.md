@@ -5,9 +5,11 @@ description: What's next after creating your first job
 
 Now that you've created your first job, you can start collecting data from your infrastructure.
 
-The strength of infracollect is that no matter where your data is coming from, you can collect it, process it and export it to your desired destination.
+The strength of infracollect is that no matter where your data is coming from, you can collect it, process it and export
+it to your desired destination.
 
-Thanks to the Terraform provider ecosystem, you can collect data from any infrastructure provider, AWS, Azure, GCP, Kubernetes, and more.
+Thanks to the Terraform provider ecosystem, you can collect data from any infrastructure provider, AWS, Azure, GCP,
+Kubernetes, and more.
 
 You can also collect data from HTTP APIs, local files and more are coming soon.
 
@@ -25,7 +27,7 @@ historical archive of your infrastructure data, you can:
 
 ## Display your data
 
-What happens when you collect all your infrastructure data, your services, applications, databases and more? You just "need"
-a little bit of glue and there you go, you got yourself a developer portal.
+What happens when you collect all your infrastructure data, your services, applications, databases and more? You just
+"need" a little bit of glue and there you go, you got yourself a developer portal.
 
 Stay-tuned, because this is exactly what we're building.

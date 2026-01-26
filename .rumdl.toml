@@ -1,5 +1,6 @@
 [global]
 force_exclude = true  # Enforce excludes even for explicitly provided files
+exclude = ["docs/**", "RELEASE-ROADMAP.md"]
 
 [per-file-ignores]
 "README.md" = ["MD033", "MD041", "MD013"]
