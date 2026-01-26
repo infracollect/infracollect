@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, error) {
+func createPipeline(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, error) {
 	logger.Info("creating pipeline", zap.String("job_name", job.Metadata.Name))
 	spec := job.Spec
 	pipeline := engine.NewPipeline(job.Metadata.Name)
@@ -47,26 +48,9 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 
 			logger.Info("created terraform collector", zap.String("collector_id", collectorSpec.ID))
 		} else if collectorSpec.HTTP != nil {
-			httpCfg := httpCollector.Config{
-				BaseURL: collectorSpec.HTTP.BaseURL,
-				Headers: collectorSpec.HTTP.Headers,
-			}
-			if collectorSpec.HTTP.Timeout != nil {
-				httpCfg.Timeout = time.Duration(*collectorSpec.HTTP.Timeout) * time.Second
-			}
-			if collectorSpec.HTTP.Auth != nil && collectorSpec.HTTP.Auth.Basic != nil {
-				httpCfg.Auth = &httpCollector.AuthConfig{
-					Basic: &httpCollector.BasicAuthConfig{
-						Username: collectorSpec.HTTP.Auth.Basic.Username,
-						Password: collectorSpec.HTTP.Auth.Basic.Password,
-						Encoded:  collectorSpec.HTTP.Auth.Basic.Encoded,
-					},
-				}
-			}
-
-			collector, err := httpCollector.NewCollector(httpCfg)
+			collector, err := buildHTTPCollector(collectorSpec.HTTP)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create http collector: %w", err)
+				return nil, fmt.Errorf("failed to build http collector: %w", err)
 			}
 
 			if err := pipeline.AddCollector(collectorSpec.ID, collector); err != nil {
@@ -133,13 +117,9 @@ func createPipeline(logger *zap.Logger, job v1.CollectJob) (*engine.Pipeline, er
 
 			logger.Info("created http get step", zap.String("step_id", stepSpec.ID))
 		} else if stepSpec.Static != nil {
-			step, err := steps.NewStaticStep(stepSpec.ID, steps.StaticStepConfig{
-				Filepath: stepSpec.Static.Filepath,
-				Value:    stepSpec.Static.Value,
-				ParseAs:  stepSpec.Static.ParseAs,
-			})
+			step, err := buildStaticStep(stepSpec.ID, stepSpec.Static)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create static step: %w", err)
+				return nil, fmt.Errorf("failed to build static step: %w", err)
 			}
 
 			if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
@@ -179,21 +159,21 @@ func buildEncoder(output *v1.OutputSpec) (engine.Encoder, error) {
 //   - Explicit filesystem sink: filesystem sink
 //
 // If archive is configured, the inner sink is wrapped with an ArchiveSink.
-func buildSink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
-	sink, err := buildInnerSink(ctx, pipeline, job)
+func buildSink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
+	sink, err := buildInnerSink(ctx, job)
 	if err != nil {
 		return nil, err
 	}
 
 	if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
-		return wrapWithArchiveSink(pipeline, job, sink)
+		return wrapWithArchiveSink(job, sink)
 	}
 
 	return sink, nil
 }
 
 // buildInnerSink creates the underlying sink (stdout, filesystem, or S3).
-func buildInnerSink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
+func buildInnerSink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
 	if job.Spec.Output == nil || job.Spec.Output.Sink == nil || job.Spec.Output.Sink.Stdout != nil {
 		if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
 			return nil, fmt.Errorf("stdout sink cannot be used with archive configuration")
@@ -202,17 +182,17 @@ func buildInnerSink(ctx context.Context, pipeline *engine.Pipeline, job v1.Colle
 	}
 
 	if job.Spec.Output.Sink.Filesystem != nil {
-		return buildFilesystemSink(pipeline, job)
+		return buildFilesystemSink(job)
 	}
 
 	if job.Spec.Output.Sink.S3 != nil {
-		return buildS3Sink(ctx, pipeline, job)
+		return buildS3Sink(ctx, job)
 	}
 
 	return nil, fmt.Errorf("invalid sink configuration: no sink type specified")
 }
 
-func wrapWithArchiveSink(pipeline *engine.Pipeline, job v1.CollectJob, inner engine.Sink) (engine.Sink, error) {
+func wrapWithArchiveSink(job v1.CollectJob, inner engine.Sink) (engine.Sink, error) {
 	archive := job.Spec.Output.Archive
 
 	compression := archive.Compression
@@ -227,15 +207,13 @@ func wrapWithArchiveSink(pipeline *engine.Pipeline, job v1.CollectJob, inner eng
 
 	name := archive.Name
 	if name == "" {
-		name = "$JOB_NAME"
+		name = job.Metadata.Name
 	}
-	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
-	name = ExpandVariables(name, vars) + archiver.Extension()
 
 	return sinks.NewArchiveSink(inner, archiver, name), nil
 }
 
-func buildFilesystemSink(pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
+func buildFilesystemSink(job v1.CollectJob) (engine.Sink, error) {
 	var path string
 	var prefix string
 
@@ -257,13 +235,10 @@ func buildFilesystemSink(pipeline *engine.Pipeline, job v1.CollectJob) (engine.S
 		path = wd
 	}
 
-	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
-	prefix = ExpandVariables(prefix, vars)
-
 	return sinks.NewFilesystemSinkFromPath(filepath.Join(path, prefix))
 }
 
-func buildS3Sink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJob) (engine.Sink, error) {
+func buildS3Sink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
 	s3Spec := job.Spec.Output.Sink.S3
 
 	cfg := sinks.S3Config{
@@ -288,9 +263,79 @@ func buildS3Sink(ctx context.Context, pipeline *engine.Pipeline, job v1.CollectJ
 		cfg.SecretAccessKey = s3Spec.Credentials.SecretAccessKey
 	}
 
-	// Expand prefix variables
-	vars := TemplateVars{JobName: job.Metadata.Name, Date: pipeline.Date()}
-	cfg.Prefix = ExpandVariables(cfg.Prefix, vars)
-
 	return sinks.NewS3Sink(ctx, cfg)
+}
+
+// buildHTTPCollectorConfig creates an HTTP collector config with expanded variables.
+func buildHTTPCollector(spec *v1.HTTPCollector) (engine.Collector, error) {
+	cfg := httpCollector.Config{
+		BaseURL: spec.BaseURL,
+		Headers: spec.Headers,
+	}
+
+	if spec.Auth != nil && spec.Auth.Basic != nil {
+		cfg.Auth = &httpCollector.AuthConfig{
+			Basic: &httpCollector.BasicAuthConfig{
+				Username: spec.Auth.Basic.Username,
+				Password: spec.Auth.Basic.Password,
+				Encoded:  spec.Auth.Basic.Encoded,
+			},
+		}
+	}
+
+	if spec.Timeout != nil {
+		cfg.Timeout = time.Duration(*spec.Timeout) * time.Second
+	}
+
+	collector, err := httpCollector.NewCollector(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http collector: %w", err)
+	}
+
+	return collector, nil
+}
+
+// buildStaticStepConfig creates a static step config with expanded variables.
+func buildStaticStep(id string, spec *v1.StaticStep) (engine.Step, error) {
+	cfg := steps.StaticStepConfig{
+		ParseAs: spec.ParseAs,
+	}
+
+	if spec.Filepath != nil {
+		cfg.Filepath = spec.Filepath
+	}
+
+	if spec.Value != nil {
+		cfg.Value = spec.Value
+	}
+
+	return steps.NewStaticStep(id, cfg)
+}
+
+// buildVariables creates the variables map for expansion.
+// It includes built-in variables and reads allowed environment variables.
+// If a variable is not set, an error is returned.
+func BuildVariables(job v1.CollectJob, allowedEnv []string) (map[string]string, error) {
+	date := time.Now().UTC()
+	variables := map[string]string{
+		"JOB_NAME":         job.Metadata.Name,
+		"JOB_DATE_ISO8601": date.Format(engine.ISO8601Basic),
+		"JOB_DATE_RFC3339": date.Format(time.RFC3339),
+	}
+
+	var errs error
+	for _, envName := range allowedEnv {
+		val, ok := os.LookupEnv(envName)
+		if !ok {
+			errs = errors.Join(errs, fmt.Errorf("environment variable %q is not set", envName))
+			continue
+		}
+		variables[envName] = val
+	}
+
+	if errs != nil {
+		return nil, errs
+	}
+
+	return variables, nil
 }

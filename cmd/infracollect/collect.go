@@ -12,6 +12,12 @@ import (
 var collectCommand = &cli.Command{
 	Name:  "collect",
 	Usage: "Collect infrastructure data",
+	Flags: []cli.Flag{
+		&cli.StringSliceFlag{
+			Name:  "allowed-env",
+			Usage: "Environment variables allowed in job configuration (can be repeated)",
+		},
+	},
 	Arguments: []cli.Argument{
 		&cli.StringArg{
 			Name:      "job",
@@ -34,6 +40,17 @@ var collectCommand = &cli.Command{
 		job, err := runner.ParseCollectJob(jobFile)
 		if err != nil {
 			return fmt.Errorf("failed to parse job: %w", err)
+		}
+
+		allowedEnv := command.StringSlice("allowed-env")
+
+		variables, err := runner.BuildVariables(job, allowedEnv)
+		if err != nil {
+			return fmt.Errorf("failed to build variables: %w", err)
+		}
+
+		if err := runner.ExpandTemplates(&job, variables); err != nil {
+			return fmt.Errorf("failed to expand templates: %w", err)
 		}
 
 		r, err := runner.New(ctx, logger.Named("runner"), job)

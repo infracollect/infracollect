@@ -41,7 +41,8 @@ func ParseCollectJob(data []byte) (v1.CollectJob, error) {
 
 func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, error) {
 	logger.Info("creating runner", zap.String("job_name", job.Metadata.Name))
-	pipeline, err := createPipeline(logger.Named("pipeline"), job)
+
+	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), job)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pipeline: %w", err)
 	}
@@ -51,7 +52,7 @@ func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, e
 		return nil, fmt.Errorf("failed to build encoder: %w", err)
 	}
 
-	sink, err := buildSink(ctx, pipeline, job)
+	sink, err := buildSink(ctx, job)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build sink: %w", err)
 	}

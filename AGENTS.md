@@ -25,6 +25,11 @@ When new work is identified during development:
 1. Add it to the appropriate priority section
 2. Use the format: `[ ] **Task Title** - Short description`
 
+## Documentation
+
+After working on a feature, look at the existing documentation in `website/src/content/docs/` and update it as needed.
+If this is a new feature, add it to the appropriate section of the documentation following the Diataxis Framework.
+
 ## Code Style
 
 ### Go Conventions
@@ -32,7 +37,6 @@ When new work is identified during development:
 - Follow standard Go formatting (`gofmt` / `goimports`)
 - Use `golangci-lint` for linting (when configured)
 - Follow [Effective Go](https://go.dev/doc/effective_go) guidelines
-- Use `gofumpt`-style formatting for stricter formatting
 
 ### Comments
 
@@ -47,50 +51,6 @@ When new work is identified during development:
 - **Functions**: PascalCase for exported, camelCase for unexported
 - **Variables**: camelCase
 - **Constants**: PascalCase or UPPER_SNAKE_CASE for exported constants
-
-### File Organization
-
-- One main type per file when possible
-- Related types can be grouped in the same file
-- Interface definitions in `pkg/engine/`
-- Collector implementations in `pkg/collectors/`
-
-## Project Structure
-
-```
-infracollect/
-├── cmd/infracollect/          # CLI entry point
-│   ├── main.go               # Main CLI application
-│   ├── collect.go            # Collect command implementation
-│   └── logging.go            # Logging setup
-├── pkg/
-│   ├── engine/               # Core interfaces and types
-│   │   ├── collector.go      # Collector interface
-│   │   ├── core.go           # Core interfaces (Named, Closer)
-│   │   ├── pipeline.go       # Pipeline type and interface
-│   │   ├── result.go         # Result type
-│   │   └── step.go           # Step interface
-│   ├── collectors/
-│   │   └── terraform/        # Terraform collector implementation
-│   │       ├── collector.go  # Collector implementation
-│   │       └── steps.go      # Data source step implementation
-│   └── runner/               # Pipeline creation and execution
-│       ├── pipeline.go       # Pipeline factory
-│       └── run.go            # Runner and job parsing
-├── apis/v1/                  # API type definitions
-│   ├── base.go               # Base types (Metadata)
-│   └── job.go                # CollectJob types
-├── docs/                     # Documentation
-└── job.yaml                  # Example job file
-```
-
-### Package Guidelines
-
-- **`pkg/engine/`**: Public interfaces and types that define the core abstractions
-- **`pkg/collectors/`**: Collector implementations (currently terraform)
-- **`pkg/runner/`**: Job parsing and pipeline orchestration
-- **`apis/v1/`**: API type definitions (YAML/JSON schemas)
-- **`cmd/`**: Application entry points
 
 ## Interface Design Patterns
 

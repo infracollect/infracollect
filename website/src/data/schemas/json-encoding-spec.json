@@ -7,6 +7,7 @@
       "yamlKey": "indent",
       "type": "string",
       "required": false,
+      "template": false,
       "description": "Indent specifies indentation. Empty = compact, \"  \" = 2 spaces, \"\\t\" = tabs.",
       "enum": null,
       "ref": null,
