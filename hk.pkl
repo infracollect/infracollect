@@ -17,11 +17,13 @@ local linters = new Mapping<String, Step> {
     fix = "golangci-lint run --fix"
   }
   ["gen-docs"] {
+    glob = List("apis/v1/*.go", "scripts/gen-docs.go")
     check = "go run scripts/gen-docs.go && git diff --exit-code website/src/data/schemas/"
     fix = "go run scripts/gen-docs.go"
     stage = List("website/src/data/schemas/*.json")
   }
   ["gen-cli-docs"] {
+    glob = List("cmd/infracollect/*.go", "scripts/gen-cli-docs.go")
     check = "go run scripts/gen-cli-docs.go && git diff --exit-code website/src/content/docs/reference/cli.md"
     fix = "go run scripts/gen-cli-docs.go"
     stage = List("website/src/content/docs/reference/cli.md")
