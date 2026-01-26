@@ -29,6 +29,7 @@ type Field struct {
 	YAMLKey     string   `json:"yamlKey"`
 	Type        string   `json:"type"`
 	Required    bool     `json:"required"`
+	Template    bool     `json:"template"`
 	Description string   `json:"description"`
 	Enum        []string `json:"enum"`
 	Ref         *string  `json:"ref"`
@@ -202,6 +203,7 @@ func extractSchema(info *typeInfo) Schema {
 			tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`"))
 			f.YAMLKey = parseYAMLKey(tag)
 			f.Required, f.Enum = parseValidateTag(tag)
+			f.Template = parseTemplateTag(tag)
 		}
 
 		// Parse type
@@ -242,6 +244,11 @@ func parseValidateTag(tag reflect.StructTag) (required bool, enum []string) {
 		}
 	}
 	return required, enum
+}
+
+func parseTemplateTag(tag reflect.StructTag) bool {
+	_, ok := tag.Lookup("template")
+	return ok
 }
 
 func parseFieldType(expr ast.Expr) (typeName string, ref *string) {

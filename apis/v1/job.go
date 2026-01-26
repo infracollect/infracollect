@@ -36,15 +36,15 @@ type Step struct {
 type TerraformDataSourceStep struct {
 	// Name of the provider data source to use.
 	Name string         `yaml:"name" json:"name"`
-	Args map[string]any `yaml:"args" json:"args"`
+	Args map[string]any `yaml:"args" json:"args" template:""`
 }
 
 type HTTPCollector struct {
 	// BaseURL is the base URL for the HTTP collector, such as "https://api.example.com".
-	BaseURL string `yaml:"base_url" json:"base_url"`
+	BaseURL string `yaml:"base_url" json:"base_url" template:""`
 
 	// Headers to include in all requests.
-	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty" template:""`
 	Auth    *HTTPAuth         `yaml:"auth,omitempty" json:"auth,omitempty"`
 
 	// Timeout is the request timeout in seconds.
@@ -59,11 +59,11 @@ type HTTPAuth struct {
 }
 
 type HTTPBasicAuth struct {
-	Username string `yaml:"username,omitempty" json:"username,omitempty"`
-	Password string `yaml:"password,omitempty" json:"password,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty" template:""`
+	Password string `yaml:"password,omitempty" json:"password,omitempty" template:""`
 
 	// Encoded is a pre-encoded Base64-encoded credentials.
-	Encoded string `yaml:"encoded,omitempty" json:"encoded,omitempty"`
+	Encoded string `yaml:"encoded,omitempty" json:"encoded,omitempty" template:""`
 }
 
 type HTTPGetStep struct {
@@ -71,10 +71,10 @@ type HTTPGetStep struct {
 	Path string `yaml:"path" json:"path"`
 
 	// Headers to include in the request.
-	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty" template:""`
 
 	// Query parameters to append to the request URL.
-	Params map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+	Params map[string]string `yaml:"params,omitempty" json:"params,omitempty" template:""`
 
 	// ResponseType is the format to parse the response as.
 	ResponseType string `yaml:"response_type,omitempty" json:"response_type,omitempty" validate:"oneof=json raw"`
@@ -85,7 +85,7 @@ type StaticStep struct {
 	Filepath *string `yaml:"filepath,omitempty" json:"filepath,omitempty" validate:"omitempty,required_without=Value,excluded_with=Value"`
 
 	// Value is an inline value to use as the static value.
-	Value *string `yaml:"value,omitempty" json:"value,omitempty" validate:"omitempty,required_without=Filepath,excluded_with=Filepath"`
+	Value *string `yaml:"value,omitempty" json:"value,omitempty" validate:"omitempty,required_without=Filepath,excluded_with=Filepath" template:""`
 
 	// ParseAs is the format to parse the value as.
 	ParseAs *string `yaml:"parse_as,omitempty" json:"parse_as,omitempty" validate:"omitempty,oneof=json raw"`
@@ -126,7 +126,7 @@ type ArchiveSpec struct {
 	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
 	// The appropriate file extension (e.g., ".tar.gz") is automatically appended.
 	// Default: "$JOB_NAME".
-	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty" template:""`
 }
 
 // EncodingSpec configures the encoder. Exactly one field should be set.
@@ -166,33 +166,26 @@ type FilesystemSinkSpec struct {
 	// Path is the directory to write files to (default: current directory).
 	Path *string `yaml:"path,omitempty" json:"path,omitempty"`
 
-	// Prefix is prepended to filenames. Supports variables:
-	//   - $JOB_NAME: The job's metadata.name
-	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z) - recommended
-	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
-	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+	// Prefix is prepended to filenames.
+	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty" template:""`
 }
 
 // S3SinkSpec configures S3-compatible object storage output.
 // Supports AWS S3, Cloudflare R2, MinIO, and other S3-compatible services.
 type S3SinkSpec struct {
 	// Bucket is the S3 bucket name.
-	Bucket string `yaml:"bucket" json:"bucket" validate:"required"`
+	Bucket string `yaml:"bucket" json:"bucket" validate:"required" template:""`
 
 	// Region is the AWS region (optional, uses SDK defaults if not specified).
-	Region *string `yaml:"region,omitempty" json:"region,omitempty"`
+	Region *string `yaml:"region,omitempty" json:"region,omitempty" template:""`
 
 	// Endpoint is a custom endpoint URL for S3-compatible services (e.g., R2, MinIO).
-	Endpoint *string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Endpoint *string `yaml:"endpoint,omitempty" json:"endpoint,omitempty" template:""`
 
-	// Prefix is prepended to object keys. Supports variables:
-	//   - $JOB_NAME: The job's metadata.name
-	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z) - recommended
-	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
-	//
-	// Note: $JOB_DATE_ISO8601 is recommended for S3 keys as RFC3339 contains colons
+	// Prefix is prepended to object keys.
+	// Note: ${JOB_DATE_ISO8601} is recommended for S3 keys as RFC3339 contains colons
 	// which require URL encoding.
-	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+	Prefix *string `yaml:"prefix,omitempty" json:"prefix,omitempty" template:""`
 
 	// Credentials provides explicit credentials (optional, uses SDK credential chain if not specified).
 	Credentials *S3Credentials `yaml:"credentials,omitempty" json:"credentials,omitempty"`
@@ -204,8 +197,8 @@ type S3SinkSpec struct {
 // S3Credentials provides explicit S3 credentials.
 type S3Credentials struct {
 	// AccessKeyID is the AWS access key ID.
-	AccessKeyID string `yaml:"access_key_id" json:"access_key_id" validate:"required"`
+	AccessKeyID string `yaml:"access_key_id" json:"access_key_id" validate:"required" template:""`
 
 	// SecretAccessKey is the AWS secret access key.
-	SecretAccessKey string `yaml:"secret_access_key" json:"secret_access_key" validate:"required"`
+	SecretAccessKey string `yaml:"secret_access_key" json:"secret_access_key" validate:"required" template:""`
 }

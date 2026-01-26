@@ -7,6 +7,7 @@
       "yamlKey": "filepath",
       "type": "string",
       "required": false,
+      "template": false,
       "description": "Filepath is a local and relative path to a file. Symlinks and directories are not allowed.",
       "enum": null,
       "ref": null,
@@ -17,6 +18,7 @@
       "yamlKey": "value",
       "type": "string",
       "required": false,
+      "template": true,
       "description": "Value is an inline value to use as the static value.",
       "enum": null,
       "ref": null,
@@ -27,6 +29,7 @@
       "yamlKey": "parse_as",
       "type": "string",
       "required": false,
+      "template": false,
       "description": "ParseAs is the format to parse the value as.",
       "enum": [
         "json",

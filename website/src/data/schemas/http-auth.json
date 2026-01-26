@@ -7,6 +7,7 @@
       "yamlKey": "basic",
       "type": "HTTPBasicAuth",
       "required": false,
+      "template": false,
       "description": "",
       "enum": null,
       "ref": "HTTPBasicAuth",

@@ -38,7 +38,7 @@ spec:
     - id: bar
       static:
         value: |
-          {"foo": "bar"}
+          {"foo": "${JOB_NAME}"}
         parse_as: json
   output:
     encoding:
@@ -50,4 +50,4 @@ spec:
     sink:
       filesystem:
         path: ./output
-        prefix: $JOB_NAME/$JOB_DATE_RFC3339
+        prefix: ${JOB_NAME}/${JOB_DATE_RFC3339}

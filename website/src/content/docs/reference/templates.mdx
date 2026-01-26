@@ -1,0 +1,79 @@
+---
+title: Templates
+description: Reference for template variable expansion in job configurations.
+---
+
+Template expansion allows you to use dynamic values in your job configuration files. Fields that support templating can reference variables using the `${VAR}` syntax.
+
+## Syntax
+
+Templates use shell-style variable expansion:
+
+- `${VAR}` - Expands to the value of `VAR`
+- `$VAR` - Also valid, but braces are recommended for clarity
+
+If a referenced variable is not defined, the job will fail with an error.
+
+## Built-in Variables
+
+The following variables are always available:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `JOB_NAME` | The job name from `metadata.name` | `my-collection-job` |
+| `JOB_DATE_ISO8601` | Current UTC timestamp in ISO8601 basic format (URL-safe) | `20240115T143052Z` |
+| `JOB_DATE_RFC3339` | Current UTC timestamp in RFC3339 format | `2024-01-15T14:30:52Z` |
+
+## Environment Variables
+
+Additional environment variables can be made available using the `--allowed-env` flag:
+
+```bash
+infracollect collect job.yaml --allowed-env AWS_REGION --allowed-env ENVIRONMENT
+```
+
+Only explicitly allowed environment variables can be referenced. If an allowed variable is not set in the environment, the job will fail.
+
+## Example
+
+```yaml
+kind: CollectJob
+metadata:
+  name: daily-backup
+
+spec:
+  collectors:
+    - id: api
+      http:
+        base_url: https://api.example.com
+        auth:
+          basic:
+            username: ${API_USER}
+            password: ${API_PASSWORD}
+
+  steps:
+    - id: data
+      collector: api
+      http_get:
+        path: /export
+
+  output:
+    sink:
+      s3:
+        bucket: my-backups
+        prefix: ${JOB_NAME}/${JOB_DATE_ISO8601}/
+```
+
+Run with:
+
+```bash
+infracollect collect job.yaml --allowed-env API_USER --allowed-env API_PASSWORD
+```
+
+## Supported Fields
+
+Not all fields support template expansion. Fields that support templates are marked with a **Template** badge in the reference documentation. Generally, string fields that accept user-provided values (paths, URLs, credentials, prefixes) support templating.
+
+The following field types are expanded:
+- String fields marked with the template tag
+- All values in `map[string]string` fields (e.g., `headers`, `params`)

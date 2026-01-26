@@ -39,7 +39,8 @@ USAGE:
    infracollect collect [options] The job file to collect data from
 
 OPTIONS:
-   --help, -h  show help
+   --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
+   --help, -h                                     show help
 
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging

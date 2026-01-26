@@ -6,6 +6,7 @@ interface Field {
   yamlKey: string;
   type: string;
   required: boolean;
+  template: boolean;
   description: string;
   enum: string[] | null;
   ref: string | null;
@@ -43,6 +44,7 @@ const md = (text: string | null | undefined) => (text ? marked.parse(text) : "")
           <code>{field.yamlKey}</code>
           {" - "}
           <span class={`badge ${field.required ? "required" : "optional"}`}>{field.required ? "Required" : "Optional"}</span>
+          {field.template && <span class="badge template">Template</span>}
           {field.type && !field.ref && <span class="type">({field.type})</span>}
           {field.ref && field.ref in schemas &&
             // prettier-ignore
@@ -136,6 +138,10 @@ const md = (text: string | null | undefined) => (text ? marked.parse(text) : "")
   .badge.optional {
     background: var(--sl-color-gray-6);
     color: var(--sl-color-gray-2);
+  }
+  .badge.template {
+    background: var(--sl-color-blue-low);
+    color: var(--sl-color-blue-high);
   }
   .type {
     color: var(--sl-color-gray-3);

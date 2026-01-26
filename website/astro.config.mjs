@@ -39,6 +39,7 @@ export default defineConfig({
           label: "Reference",
           items: [
             { label: "CLI", slug: "reference/cli" },
+            { label: "Templates", slug: "reference/templates" },
             {
               label: "Collectors",
               autogenerate: { directory: "reference/collectors" },
