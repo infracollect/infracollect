@@ -59,7 +59,7 @@ func main() {
 				return nil, err
 			}
 
-			logger.Info("logger created", zap.String("log_level", command.String("log-level")))
+			logger.Debug("logger created", zap.String("log_level", command.String("log-level")))
 
 			loggerDeferFunc = func() error {
 				return logger.Sync()
@@ -76,9 +76,9 @@ func main() {
 			}
 
 			if logger := tryLogger(ctx); logger != nil {
-				logger.Fatal("failed to run application", zap.Error(err))
+				logger.Fatal(err.Error())
 			} else {
-				log.Fatal(fmt.Errorf("failed to run application: %w", err))
+				log.Fatal(err.Error())
 			}
 		},
 	}

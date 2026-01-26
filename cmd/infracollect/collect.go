@@ -14,6 +14,7 @@ import (
 	"github.com/infracollect/infracollect/internal/runner"
 	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var collectCommand = &cli.Command{
@@ -86,7 +87,7 @@ var collectCommand = &cli.Command{
 			return fmt.Errorf("failed to expand templates: %w", err)
 		}
 
-		r, err := runner.New(ctx, logger.Named("runner"), job)
+		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), job)
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}

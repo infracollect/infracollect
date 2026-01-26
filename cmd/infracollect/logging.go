@@ -24,7 +24,7 @@ func createLogger(debug bool, logLevel string, logFormat string) (logger *zap.Lo
 		loggerCfg.Level = level
 	} else {
 		loggerCfg = zap.NewProductionConfig()
-		loggerCfg.DisableStacktrace = false
+		loggerCfg.DisableStacktrace = true
 		loggerCfg.Level = level
 	}
 
