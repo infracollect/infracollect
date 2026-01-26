@@ -9,10 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/samber/lo"
 )
+
+// versionRegex matches VERSION: followed by a version string starting with v
+var versionRegex = regexp.MustCompile(`(VERSION:\s+)v\S+`)
 
 type command struct {
 	name string
@@ -90,6 +94,9 @@ func main() {
 func formatSection(name, helpOutput string) string {
 	var sb strings.Builder
 
+	// Normalize version strings to avoid diffs from build-time changes
+	helpOutput = normalizeVersion(helpOutput)
+
 	sb.WriteString(fmt.Sprintf("## %s\n\n", name))
 	sb.WriteString("```text\n")
 	sb.WriteString(strings.Join(lo.Map(strings.Split(strings.TrimSpace(helpOutput), "\n"), func(line string, _ int) string {
@@ -98,6 +105,11 @@ func formatSection(name, helpOutput string) string {
 	sb.WriteString("\n```\n")
 
 	return sb.String()
+}
+
+// normalizeVersion replaces dynamic version strings with a stable placeholder
+func normalizeVersion(s string) string {
+	return versionRegex.ReplaceAllString(s, "${1}dev")
 }
 
 func generateMarkdown(sections []string) string {

@@ -15,7 +15,7 @@ USAGE:
    infracollect [global options] [command [command options]]
 
 VERSION:
-   v0.0.0-20260125184857-47c778265f0c+dirty
+   dev
 
 COMMANDS:
    collect  Collect infrastructure data
