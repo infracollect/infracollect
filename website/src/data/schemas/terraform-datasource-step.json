@@ -18,7 +18,7 @@
       "yamlKey": "args",
       "type": "map[string]any",
       "required": false,
-      "template": true,
+      "template": false,
       "description": "",
       "enum": null,
       "ref": null,
