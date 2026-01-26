@@ -2,3 +2,4 @@ output
 website/src/data
 # Temporary
 *.astro
+docs/** */

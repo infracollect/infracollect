@@ -17,16 +17,21 @@ local linters = new Mapping<String, Step> {
     fix = "golangci-lint run --fix"
   }
   ["gen-docs"] {
+    glob = List("apis/v1/*.go", "scripts/gen-docs.go")
     check = "go run scripts/gen-docs.go && git diff --exit-code website/src/data/schemas/"
     fix = "go run scripts/gen-docs.go"
     stage = List("website/src/data/schemas/*.json")
   }
   ["gen-cli-docs"] {
+    glob = List("cmd/infracollect/*.go", "scripts/gen-cli-docs.go")
     check = "go run scripts/gen-cli-docs.go && git diff --exit-code website/src/content/docs/reference/cli.md"
     fix = "go run scripts/gen-cli-docs.go"
     stage = List("website/src/content/docs/reference/cli.md")
   }
   ["gomod-tidy"] = Builtins.gomod_tidy
+  ["go-vuln-check"] = (Builtins.go_vuln_check) {
+    check = "govulncheck ./..."
+  }
   ["actionlint"] = Builtins.actionlint
   ["mise"] = Builtins.mise
   ["rumdl"] = Builtins.rumdl
@@ -39,10 +44,6 @@ hooks {
     steps {
       ...linters // add all linters defined above
     }
-  }
-  // instead of pre-commit, you can instead define pre-push hooks
-  ["pre-push"] {
-    steps = linters
   }
   // "fix" and "check" are special steps for `hk fix` and `hk check` commands
   ["fix"] {
