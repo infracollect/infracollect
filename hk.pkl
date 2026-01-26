@@ -22,9 +22,9 @@ local linters = new Mapping<String, Step> {
     stage = List("website/src/data/schemas/*.json")
   }
   ["gen-cli-docs"] {
-    check = "go run scripts/gen-cli-docs.go && git diff --exit-code website/src/content/docs/reference/cli/"
+    check = "go run scripts/gen-cli-docs.go && git diff --exit-code website/src/content/docs/reference/cli.md"
     fix = "go run scripts/gen-cli-docs.go"
-    stage = List("website/src/content/docs/reference/cli/*.md")
+    stage = List("website/src/content/docs/reference/cli.md")
   }
   ["gomod-tidy"] = Builtins.gomod_tidy
   ["actionlint"] = Builtins.actionlint
