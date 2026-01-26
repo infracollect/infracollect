@@ -48,7 +48,7 @@ GitHub Actions workflow with:
 
 <!-- Core features and important improvements -->
 
-### [ ] Validate command
+### [x] Validate command
 
 Add a `validate` command to validate the job file.
 
@@ -157,3 +157,5 @@ Test with Kind, RustFS, etc... for the different collectors.
 - [x] **Archive support** - Added .tar.gz/tar.zst compression via `output.archive` configuration (completed 2026-01-24)
 - [x] **Environment variables** - Support for environment variables in job files via `--allowed-env` flag and template
       expansion (completed 2026-01-26)
+- [x] **Validate command** - Added `validate` command with pretty error formatting for validation and YAML errors
+      (completed 2026-01-26)

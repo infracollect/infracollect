@@ -6,7 +6,7 @@
       "name": "Name",
       "yamlKey": "name",
       "type": "string",
-      "required": false,
+      "required": true,
       "template": false,
       "description": "Name of the provider data source to use.",
       "enum": null,

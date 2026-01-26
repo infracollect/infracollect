@@ -35,7 +35,7 @@ type Step struct {
 // TerraformDataSourceStep is a step that uses a Terraform provider's data source.
 type TerraformDataSourceStep struct {
 	// Name of the provider data source to use.
-	Name string         `yaml:"name" json:"name"`
+	Name string         `yaml:"name" json:"name" validate:"required"`
 	Args map[string]any `yaml:"args" json:"args"`
 }
 

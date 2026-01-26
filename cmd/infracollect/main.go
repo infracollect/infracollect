@@ -50,6 +50,7 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			collectCommand,
+			validateCommand,
 			versionCommand,
 		},
 		Before: func(ctx context.Context, command *cli.Command) (context.Context, error) {

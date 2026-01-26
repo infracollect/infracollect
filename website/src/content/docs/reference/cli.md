@@ -18,9 +18,10 @@ VERSION:
    dev
 
 COMMANDS:
-   collect  Collect infrastructure data
-   version  Print version information
-   help, h  Shows a list of commands or help for one command
+   collect   Collect infrastructure data
+   validate  Validate a job file
+   version   Print version information
+   help, h   Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging
@@ -42,6 +43,25 @@ USAGE:
 OPTIONS:
    --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
    --trust-remote                                 Trust remote job file
+   --help, -h                                     show help
+
+GLOBAL OPTIONS:
+   --debug, -d                    Enable debug logging
+   --log-level string, -l string  Log Level (debug, info, warn, error, fatal) (default: "info")
+   --log-format string            Log format (json, console) (default: "console")
+```
+
+## validate
+
+```text
+NAME:
+   infracollect validate - Validate a job file
+
+USAGE:
+   infracollect validate [options] The job file to validate
+
+OPTIONS:
+   --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
    --help, -h                                     show help
 
 GLOBAL OPTIONS:
