@@ -19,6 +19,7 @@ require (
 	github.com/urfave/cli-validation v0.0.0-20230629031421-92802a7fd6e9
 	github.com/urfave/cli/v3 v3.6.1
 	go.uber.org/zap v1.27.1
+	golang.org/x/term v0.39.0
 )
 
 require (

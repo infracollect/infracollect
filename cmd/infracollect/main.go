@@ -64,7 +64,10 @@ func main() {
 				return logger.Sync()
 			}
 
-			return withLogger(ctx, logger), nil
+			ctx = withLogger(ctx, logger)
+			ctx = withInteractive(ctx, isInteractiveEnvironment())
+
+			return ctx, nil
 		},
 		ExitErrHandler: func(ctx context.Context, command *cli.Command, err error) {
 			if err == nil {

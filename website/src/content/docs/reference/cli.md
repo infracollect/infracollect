@@ -41,6 +41,7 @@ USAGE:
 
 OPTIONS:
    --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
+   --trust-remote                                 Trust remote job file
    --help, -h                                     show help
 
 GLOBAL OPTIONS:

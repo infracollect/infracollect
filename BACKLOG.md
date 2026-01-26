@@ -107,6 +107,16 @@ Nested steps would be useful to transform the data from one step to the next.
 
 <!-- Future ideas and nice-to-haves -->
 
+### [ ] Dry-run mode
+
+Add a `--dry-run` flag to the `collect` command to print the pipeline steps and their resolved values without executing
+them.
+
+### [ ] SSRF protection for remote job files
+
+Add protection against Server-Side Request Forgery when fetching remote job files. Block requests to private IP ranges
+(10.x, 172.16-31.x, 192.168.x, 127.x, link-local, etc.) to prevent access to internal services.
+
 ### [ ] Structured value object for static steps
 
 Add `value_obj` field to static steps to allow passing structured data directly as YAML objects, avoiding string
