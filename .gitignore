@@ -1,2 +1,5 @@
-.claude
+# Claude Code local settings (but allow shared hooks)
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .vscode
