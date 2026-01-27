@@ -98,3 +98,28 @@ func (c *Collector) ReadDataSource(ctx context.Context, name string, args map[st
 func (c *Collector) Close(ctx context.Context) error {
 	return c.client.StopProvider(ctx, c.providerConfig)
 }
+
+func (c *Collector) ProviderSource() string {
+	var (
+		namespace string
+		name      string
+	)
+	if c.provider != nil {
+		namespace = c.provider.Config().Namespace
+		name = c.provider.Config().Name
+	} else {
+		namespace = c.providerConfig.Namespace
+		name = c.providerConfig.Name
+	}
+	return fmt.Sprintf("%s/%s", namespace, name)
+}
+
+func (c *Collector) ProviderVersion() string {
+	var version string
+	if c.provider != nil {
+		version = c.provider.Config().Version
+	} else {
+		version = c.providerConfig.Version
+	}
+	return version
+}

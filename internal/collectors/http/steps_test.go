@@ -18,6 +18,7 @@ type getStepTest struct {
 	expected           any    // if set, asserts result equals this
 	expectErr          string // if set, asserts error contains this
 	validateReq        func(t *testing.T, req *http.Request)
+	validateMeta       func(t *testing.T, serverURL string, meta map[string]string)
 }
 
 func runGetStepTests(t *testing.T, tests []getStepTest) {
@@ -58,13 +59,16 @@ func runGetStepTests(t *testing.T, tests []getStepTest) {
 
 			if tt.expectErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectErr)
+				assert.ErrorContains(t, err, tt.expectErr)
 				return
 			}
 
 			require.NoError(t, err)
 			if tt.expected != nil {
 				assert.Equal(t, tt.expected, result.Data)
+			}
+			if tt.validateMeta != nil {
+				tt.validateMeta(t, server.URL, result.Meta)
 			}
 		})
 	}
@@ -78,12 +82,18 @@ func TestGetStep_Resolve(t *testing.T) {
 				config:   GetConfig{Path: "/test"},
 				response: `{"status": "ok"}`,
 				expected: map[string]any{"status": "ok"},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Equal(t, serverURL+"/test", meta["url"])
+				},
 			},
 			{
 				name:     "nested path segments",
 				config:   GetConfig{Path: "/api/v1/users"},
 				response: `{"users": []}`,
 				expected: map[string]any{"users": []any{}},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Equal(t, serverURL+"/api/v1/users", meta["url"])
+				},
 			},
 			{
 				name:     "path without leading slash",
@@ -91,6 +101,9 @@ func TestGetStep_Resolve(t *testing.T) {
 				response: `{"ok": true}`,
 				validateReq: func(t *testing.T, req *http.Request) {
 					assert.Equal(t, "/test", req.URL.Path)
+				},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Equal(t, serverURL+"/test", meta["url"])
 				},
 			},
 		})
@@ -112,6 +125,9 @@ func TestGetStep_Resolve(t *testing.T) {
 					assert.Equal(t, "custom-value", req.Header.Get("X-Custom-Header"))
 					assert.Equal(t, "Bearer token123", req.Header.Get("Authorization"))
 				},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Equal(t, serverURL+"/test", meta["url"])
+				},
 			},
 			{
 				name: "query params",
@@ -129,6 +145,12 @@ func TestGetStep_Resolve(t *testing.T) {
 					assert.Equal(t, "10", req.URL.Query().Get("limit"))
 					assert.Equal(t, "name", req.URL.Query().Get("sort"))
 				},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Contains(t, meta["url"], serverURL+"/test?")
+					assert.Contains(t, meta["url"], "page=1")
+					assert.Contains(t, meta["url"], "limit=10")
+					assert.Contains(t, meta["url"], "sort=name")
+				},
 			},
 			{
 				name: "headers and params combined",
@@ -142,6 +164,11 @@ func TestGetStep_Resolve(t *testing.T) {
 					assert.Equal(t, "secret-key", req.Header.Get("X-API-Key"))
 					assert.Equal(t, "test", req.URL.Query().Get("q"))
 					assert.Equal(t, "user", req.URL.Query().Get("type"))
+				},
+				validateMeta: func(t *testing.T, serverURL string, meta map[string]string) {
+					assert.Contains(t, meta["url"], serverURL+"/api/search?")
+					assert.Contains(t, meta["url"], "q=test")
+					assert.Contains(t, meta["url"], "type=user")
 				},
 			},
 		})

@@ -19,6 +19,7 @@ func TestDataSourceStep_Resolve(t *testing.T) {
 		wantErr     bool
 		errContains string
 		wantData    map[string]any
+		wantMeta    map[string]string
 	}{
 		{
 			name:   "success",
@@ -27,6 +28,11 @@ func TestDataSourceStep_Resolve(t *testing.T) {
 			setupMock: func() *mockProvider {
 				return &mockProvider{
 					isConfigured: true,
+					providerConfig: tfclient.ProviderConfig{
+						Namespace: "hashicorp",
+						Name:      "aws",
+						Version:   "5.0.0",
+					},
 					readDataSourceFunc: func(ctx context.Context, name string, args map[string]any) (*tfclient.DataSourceResult, error) {
 						return &tfclient.DataSourceResult{
 							State: map[string]any{
@@ -40,6 +46,11 @@ func TestDataSourceStep_Resolve(t *testing.T) {
 			wantData: map[string]any{
 				"id":            "i-12345",
 				"instance_type": "t3.micro",
+			},
+			wantMeta: map[string]string{
+				"terraform_provider":         "hashicorp/aws",
+				"terraform_provider_version": "5.0.0",
+				"terraform_datasource":       "aws_instance",
 			},
 		},
 		{
@@ -76,12 +87,13 @@ func TestDataSourceStep_Resolve(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
+				assert.ErrorContains(t, err, tt.errContains)
 				return
 			}
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantData, result.Data)
+			assert.Equal(t, tt.wantMeta, result.Meta)
 		})
 	}
 }

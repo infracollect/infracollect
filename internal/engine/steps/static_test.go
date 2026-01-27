@@ -31,6 +31,7 @@ func TestNewStaticStepWithFs(t *testing.T) {
 		filepath    string
 		parseAs     *string
 		wantData    any
+		wantMeta    map[string]string
 		wantErr     bool
 		errContains string
 	}{
@@ -39,12 +40,14 @@ func TestNewStaticStepWithFs(t *testing.T) {
 			files:    map[string]string{"test.txt": "hello world"},
 			filepath: "test.txt",
 			wantData: map[string]any{"test.txt": "hello world"},
+			wantMeta: map[string]string{"filepath": "test.txt"},
 		},
 		{
 			name:     "reads nested file",
 			files:    map[string]string{"a/b/c/nested.txt": "nested content"},
 			filepath: "a/b/c/nested.txt",
 			wantData: map[string]any{"nested.txt": "nested content"},
+			wantMeta: map[string]string{"filepath": "a/b/c/nested.txt"},
 		},
 		{
 			name:        "returns error for non-existent file",
@@ -58,6 +61,7 @@ func TestNewStaticStepWithFs(t *testing.T) {
 			files:    map[string]string{"data.json": `{"name": "test", "count": 10}`},
 			filepath: "data.json",
 			wantData: map[string]any{"name": "test", "count": float64(10)},
+			wantMeta: map[string]string{"filepath": "data.json"},
 		},
 		{
 			name:     "skips JSON parsing when parseAs is raw",
@@ -65,6 +69,7 @@ func TestNewStaticStepWithFs(t *testing.T) {
 			filepath: "data.json",
 			parseAs:  lo.ToPtr("raw"),
 			wantData: map[string]any{"data.json": `{"name": "test"}`},
+			wantMeta: map[string]string{"filepath": "data.json"},
 		},
 		{
 			name:        "returns error for invalid JSON file",
@@ -78,6 +83,7 @@ func TestNewStaticStepWithFs(t *testing.T) {
 			files:    map[string]string{"empty.txt": ""},
 			filepath: "empty.txt",
 			wantData: map[string]any{"empty.txt": ""},
+			wantMeta: map[string]string{"filepath": "empty.txt"},
 		},
 	}
 
@@ -99,6 +105,7 @@ func TestNewStaticStepWithFs(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantData, result.Data)
+			assert.Equal(t, tt.wantMeta, result.Meta)
 		})
 	}
 }
@@ -115,12 +122,14 @@ func TestNewStaticStepWithFs_PathTraversal(t *testing.T) {
 		name     string
 		filepath string
 		wantData map[string]any
+		wantMeta map[string]string
 		wantErr  bool
 	}{
 		{
 			name:     "reads file within sandbox",
 			filepath: "safe.txt",
 			wantData: map[string]any{"safe.txt": "safe"},
+			wantMeta: map[string]string{"filepath": "safe.txt"},
 		},
 		{
 			name:     "blocks path traversal with ../",
@@ -141,6 +150,7 @@ func TestNewStaticStepWithFs_PathTraversal(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantData, result.Data)
+			assert.Equal(t, tt.wantMeta, result.Meta)
 		})
 	}
 }

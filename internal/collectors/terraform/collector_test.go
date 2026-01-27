@@ -14,6 +14,11 @@ type mockProvider struct {
 	configureFunc      func(ctx context.Context, args map[string]any) error
 	readDataSourceFunc func(ctx context.Context, name string, args map[string]any) (*tfclient.DataSourceResult, error)
 	isConfigured       bool
+	providerConfig     tfclient.ProviderConfig
+}
+
+func (m *mockProvider) Config() tfclient.ProviderConfig {
+	return m.providerConfig
 }
 
 func (m *mockProvider) Configure(ctx context.Context, args map[string]any) error {
@@ -114,7 +119,7 @@ func TestNewCollector(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
+				assert.ErrorContains(t, err, tt.errContains)
 				return
 			}
 
@@ -193,7 +198,7 @@ func TestCollector_Start(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
+				assert.ErrorContains(t, err, tt.errContains)
 				return
 			}
 
@@ -318,7 +323,7 @@ func TestCollector_ReadDataSource(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
+				assert.ErrorContains(t, err, tt.errContains)
 				return
 			}
 

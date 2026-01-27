@@ -53,6 +53,10 @@ func newStaticFileStep(name string, fs afero.Fs, cfg StaticStepConfig) engine.St
 			return engine.Result{}, fmt.Errorf("failed to read filepath %s: %w", *cfg.Filepath, err)
 		}
 
+		meta := map[string]string{
+			"filepath": *cfg.Filepath,
+		}
+
 		hasJSONExtension := strings.HasSuffix(*cfg.Filepath, ".json")
 		shouldParseAsJSON := hasJSONExtension && (cfg.ParseAs == nil || *cfg.ParseAs == "json")
 		if shouldParseAsJSON {
@@ -60,10 +64,10 @@ func newStaticFileStep(name string, fs afero.Fs, cfg StaticStepConfig) engine.St
 			if err := json.Unmarshal(data, &parsed); err != nil {
 				return engine.Result{}, fmt.Errorf("failed to parse as json %s: %w", *cfg.Filepath, err)
 			}
-			return engine.Result{Data: parsed}, nil
+			return engine.Result{Data: parsed, Meta: meta}, nil
 		}
 
-		return engine.Result{Data: map[string]any{filepath.Base(*cfg.Filepath): string(data)}}, nil
+		return engine.Result{Data: map[string]any{filepath.Base(*cfg.Filepath): string(data)}, Meta: meta}, nil
 	})
 }
 

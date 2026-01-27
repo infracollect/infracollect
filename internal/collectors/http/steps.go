@@ -74,7 +74,11 @@ func (s *getStep) Resolve(ctx context.Context) (engine.Result, error) {
 		return engine.Result{}, fmt.Errorf("failed to process response: %w", err)
 	}
 
-	return engine.Result{Data: data}, nil
+	meta := map[string]string{
+		"url": reqURL.String(),
+	}
+
+	return engine.Result{Data: data, Meta: meta}, nil
 }
 
 func (s *getStep) buildURL() (*url.URL, error) {

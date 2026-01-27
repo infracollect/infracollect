@@ -31,10 +31,6 @@ spec:
       static:
         filepath: ./job.yaml
         parse_as: raw
-    - id: foo
-      static:
-        filepath: ./foo.json
-        # parse_as: json
     - id: bar
       static:
         value: |
