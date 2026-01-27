@@ -49,6 +49,20 @@ func (e *JSONEncoder) EncodeResults(ctx context.Context, results map[string]engi
 	return &buff, nil
 }
 
+func (e *JSONEncoder) EncodeMeta(ctx context.Context, meta map[string]string) (io.Reader, error) {
+	var buff bytes.Buffer
+	encoder := json.NewEncoder(&buff)
+	if e.indent != "" {
+		encoder.SetIndent("", e.indent)
+	}
+
+	if err := encoder.Encode(meta); err != nil {
+		return nil, fmt.Errorf("failed to encode meta as JSON: %w", err)
+	}
+
+	return &buff, nil
+}
+
 func (e *JSONEncoder) FileExtension() string {
 	return "json"
 }

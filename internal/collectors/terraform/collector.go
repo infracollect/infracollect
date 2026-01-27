@@ -98,3 +98,11 @@ func (c *Collector) ReadDataSource(ctx context.Context, name string, args map[st
 func (c *Collector) Close(ctx context.Context) error {
 	return c.client.StopProvider(ctx, c.providerConfig)
 }
+
+func (c *Collector) ProviderSource() string {
+	return c.providerConfig.String()
+}
+
+func (c *Collector) ProviderVersion() string {
+	return c.providerConfig.Version
+}

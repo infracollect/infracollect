@@ -10,6 +10,9 @@ type Encoder interface {
 	// EncodeResult encodes a single result's Data to a reader.
 	EncodeResult(ctx context.Context, result Result) (io.Reader, error)
 
+	// EncodeMeta encodes a result's Meta to a reader.
+	EncodeMeta(ctx context.Context, meta map[string]string) (io.Reader, error)
+
 	// FileExtension returns extension without dot (e.g., "json").
 	FileExtension() string
 }

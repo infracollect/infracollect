@@ -35,5 +35,11 @@ func (s *dataSourceStep) Resolve(ctx context.Context) (engine.Result, error) {
 		return engine.Result{}, err
 	}
 
-	return engine.Result{Data: data}, nil
+	meta := map[string]string{
+		"provider":         s.collector.ProviderSource(),
+		"provider_version": s.collector.ProviderVersion(),
+		"datasource":       s.name,
+	}
+
+	return engine.Result{Data: data, Meta: meta}, nil
 }

@@ -109,6 +109,18 @@ func (r *Runner) WriteResults(ctx context.Context, results map[string]engine.Res
 		if err := r.sink.Write(ctx, filename, reader); err != nil {
 			return fmt.Errorf("failed to write result for step %s: %w", stepID, err)
 		}
+
+		if result.Meta != nil && len(result.Meta) > 0 {
+			metaReader, err := r.encoder.EncodeMeta(ctx, result.Meta)
+			if err != nil {
+				return fmt.Errorf("failed to encode meta for step %s: %w", stepID, err)
+			}
+
+			metaFilename := fmt.Sprintf("%s.meta.%s", stepID, r.encoder.FileExtension())
+			if err := r.sink.Write(ctx, metaFilename, metaReader); err != nil {
+				return fmt.Errorf("failed to write meta for step %s: %w", stepID, err)
+			}
+		}
 	}
 
 	// Close the sink if needed
