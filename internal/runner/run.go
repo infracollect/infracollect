@@ -8,11 +8,13 @@ import (
 	"github.com/goccy/go-yaml"
 	v1 "github.com/infracollect/infracollect/apis/v1"
 	"github.com/infracollect/infracollect/internal/engine"
+	"github.com/samber/do/v2"
 	"go.uber.org/zap"
 )
 
 type Runner struct {
 	logger   *zap.Logger
+	injector do.Injector
 	job      v1.CollectJob
 	pipeline *engine.Pipeline
 	encoder  engine.Encoder
@@ -39,10 +41,13 @@ func ParseCollectJob(data []byte) (v1.CollectJob, error) {
 	return job, nil
 }
 
-func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, error) {
+// New creates a new Runner with the given logger, registry, injector, and job.
+// The registry provides factories for creating collectors and steps.
+// The injector provides lazy-loaded dependencies (e.g., terraform client).
+func New(ctx context.Context, logger *zap.Logger, registry *engine.Registry, injector do.Injector, job v1.CollectJob) (*Runner, error) {
 	logger.Info("creating runner", zap.String("job_name", job.Metadata.Name))
 
-	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), job)
+	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), registry, injector, job)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pipeline: %w", err)
 	}
@@ -59,6 +64,7 @@ func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, e
 
 	return &Runner{
 		logger:   logger,
+		injector: injector,
 		pipeline: pipeline,
 		job:      job,
 		encoder:  encoder,

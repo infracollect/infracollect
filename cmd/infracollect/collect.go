@@ -87,7 +87,11 @@ var collectCommand = &cli.Command{
 			return fmt.Errorf("failed to expand templates: %w", err)
 		}
 
-		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), job)
+		// Build the DI container and registry
+		injector := runner.BuildContainer(logger)
+		registry := runner.BuildRegistry()
+
+		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), registry, injector, job)
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}
