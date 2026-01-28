@@ -112,7 +112,7 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Features
 
-- [ ] **Plugin system**: Allow external collectors/steps
+- [ ] **Plugin system**: Allow external integrations/steps
 - [ ] **Config validation CLI**: `infracollect validate` command
 - [ ] **Dry-run mode**: Preview what a job would do without executing
 - [ ] **Watch mode**: Re-run collection on schedule or file changes

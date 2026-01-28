@@ -1,11 +1,10 @@
 module github.com/infracollect/infracollect
 
-go 1.25.5
+go 1.25.6
 
 tool golang.org/x/tools/go/packages
 
 require (
-	github.com/adrien-f/tf-data-client v0.0.0-20260123185311-c77646c9d63e
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
@@ -14,6 +13,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/goccy/go-yaml v1.19.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
+	github.com/infracollect/tf-data-client v0.0.0-20260128224325-f93abb013e77
 	github.com/klauspost/compress v1.18.3
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli-validation v0.0.0-20230629031421-92802a7fd6e9
@@ -66,7 +66,7 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260122232226-8e98ce8d340d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -80,5 +80,3 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 )
-
-replace github.com/adrien-f/tf-data-client => ../tf-data-client

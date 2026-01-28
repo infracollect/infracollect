@@ -20,7 +20,7 @@ Minimum test coverage for core components:
 
 - `internal/runner/run_test.go` - Job parsing and validation
 - `internal/engine/pipeline_test.go` - Pipeline execution
-- `internal/collectors/terraform/collector_test.go` - Terraform collector
+- `internal/integrations/terraform/collector_test.go` - Terraform collector
 
 ### [x] LICENSE file
 

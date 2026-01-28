@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	tfclient "github.com/adrien-f/tf-data-client"
 	"github.com/go-logr/zapr"
 	v1 "github.com/infracollect/infracollect/apis/v1"
 	"github.com/infracollect/infracollect/internal/engine"
+	tfclient "github.com/infracollect/tf-data-client"
 	"go.uber.org/zap"
 )
 

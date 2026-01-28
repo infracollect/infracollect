@@ -7,10 +7,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/goccy/go-yaml"
 	v1 "github.com/infracollect/infracollect/apis/v1"
-	"github.com/infracollect/infracollect/internal/collectors/http"
-	"github.com/infracollect/infracollect/internal/collectors/terraform"
 	"github.com/infracollect/infracollect/internal/engine"
 	"github.com/infracollect/infracollect/internal/engine/steps"
+	"github.com/infracollect/infracollect/internal/integrations/http"
+	"github.com/infracollect/infracollect/internal/integrations/terraform"
 	"go.uber.org/zap"
 )
 

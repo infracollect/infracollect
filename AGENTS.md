@@ -426,7 +426,7 @@ func (c *Collector) Close() error {
 ## When Adding New Features
 
 1. **Define interfaces first** in `pkg/engine/`
-2. **Implement in appropriate package** (`pkg/collectors/` for collectors, etc.)
+2. **Implement in appropriate package** (`internal/integrations/` for collectors, etc.)
 3. **Add tests** alongside implementation
 4. **Update documentation** (docs/ and code comments)
 5. **Add examples** if the feature is user-facing (e.g., job.yaml)

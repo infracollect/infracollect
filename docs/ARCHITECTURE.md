@@ -86,8 +86,8 @@ flowchart TD
 
 **Locations**:
 
-- `internal/collectors/terraform/` - Terraform provider collector
-- `internal/collectors/http/` - HTTP REST API collector
+- `internal/integrations/terraform/` - Terraform provider collector
+- `internal/integrations/http/` - HTTP REST API collector
 
 **Responsibilities**:
 
@@ -121,8 +121,8 @@ flowchart TD
 
 **Locations**:
 
-- `internal/collectors/terraform/steps.go` - Terraform data source steps
-- `internal/collectors/http/steps.go` - HTTP request steps
+- `internal/integrations/terraform/steps.go` - Terraform data source steps
+- `internal/integrations/http/steps.go` - HTTP request steps
 
 **Responsibilities**:
 
@@ -142,7 +142,7 @@ flowchart TD
 
 ### 5. tf-data-client Integration
 
-**Location**: External library `github.com/adrien-f/tf-data-client`
+**Location**: External library `github.com/infracollect/tf-data-client`
 
 **Responsibilities**:
 

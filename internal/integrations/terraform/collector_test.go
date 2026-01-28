@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	tfclient "github.com/adrien-f/tf-data-client"
+	tfclient "github.com/infracollect/tf-data-client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
