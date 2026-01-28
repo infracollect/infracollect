@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DataSourceStepName = "terraform_datasource"
+	DataSourceStepKind = "terraform_datasource"
 )
 
 type dataSourceStep struct {
@@ -22,11 +22,11 @@ func NewDataSourceStep(collector *Collector, name string, args map[string]any) e
 }
 
 func (s *dataSourceStep) Name() string {
-	return fmt.Sprintf("%s(%s)", DataSourceStepName, s.name)
+	return fmt.Sprintf("%s(%s)", DataSourceStepKind, s.name)
 }
 
 func (s *dataSourceStep) Kind() string {
-	return DataSourceStepName
+	return DataSourceStepKind
 }
 
 func (s *dataSourceStep) Resolve(ctx context.Context) (engine.Result, error) {

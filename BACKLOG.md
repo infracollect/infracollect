@@ -91,6 +91,15 @@ possibilities for collectors.
 
 <!-- Nice-to-have features and enhancements -->
 
+### [ ] Contributor documentation: Adding a new collector
+
+Create documentation for contributors on how to add a new collector/step:
+
+- Using `NewCollectorFactory[T]` for type-safe collector registration
+- Using `NewStepFactory[C, S]` for steps requiring a specific collector
+- Using `NewStepFactoryWithoutCollector[S]` for standalone steps
+- Example walkthrough of adding a complete collector with steps
+
 ### [ ] Adopt builder pattern for pipeline
 
 The pipeline is currently built using a series of functions that build the different components of the pipeline. This is

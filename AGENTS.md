@@ -143,6 +143,12 @@ var ErrCollectorNotFound = errors.New("collector not found")
 - Test functions: `TestXxx` for unit tests, `TestXxx_Scenario` for specific scenarios
 - Always use stretchr/testify/assert and stretchr/testify/require methods for assertions
 
+### Assertions
+
+- Use `assert.ErrorContains(t, err, "substring")` instead of `assert.Contains(t, err.Error(), "substring")`
+- Use `require.NoError(t, err)` for errors that should halt the test
+- Use `assert.NoError(t, err)` for errors that should be reported but not halt
+
 ### Test Naming
 
 ```go

@@ -7,7 +7,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/goccy/go-yaml"
 	v1 "github.com/infracollect/infracollect/apis/v1"
+	"github.com/infracollect/infracollect/internal/collectors/http"
+	"github.com/infracollect/infracollect/internal/collectors/terraform"
 	"github.com/infracollect/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/engine/steps"
 	"go.uber.org/zap"
 )
 
@@ -39,10 +42,20 @@ func ParseCollectJob(data []byte) (v1.CollectJob, error) {
 	return job, nil
 }
 
+func BuildRegistry(logger *zap.Logger) *engine.Registry {
+	registry := engine.NewRegistry(logger)
+	terraform.Register(registry)
+	http.Register(registry)
+	steps.Register(registry)
+	return registry
+}
+
 func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, error) {
 	logger.Info("creating runner", zap.String("job_name", job.Metadata.Name))
 
-	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), job)
+	registry := BuildRegistry(logger)
+
+	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), registry, job)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pipeline: %w", err)
 	}

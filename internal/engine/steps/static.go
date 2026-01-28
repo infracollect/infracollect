@@ -12,6 +12,10 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	StaticStepKind = "static"
+)
+
 type StaticStepConfig struct {
 	Filepath *string
 	Value    *string
