@@ -78,3 +78,20 @@ Not all fields support template expansion. Fields that support templates are mar
 The following field types are expanded:
 - String fields marked with the template tag
 - All values in `map[string]string` fields (e.g., `headers`, `params`)
+- All elements in `[]string` (string array) fields marked with the template tag (e.g., `program`)
+
+### Array Templating Example
+
+String arrays support per-element template expansion. For example, in an `exec` step:
+
+```yaml
+steps:
+  - id: run-script
+    exec:
+      program:
+        - /bin/bash
+        - -c
+        - echo "Job ${JOB_NAME} running in ${ENVIRONMENT}"
+```
+
+Each element in the `program` array is expanded independently, allowing you to use variables in command arguments.
