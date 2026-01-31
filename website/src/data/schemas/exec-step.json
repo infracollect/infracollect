@@ -1,0 +1,75 @@
+{
+  "name": "ExecStep",
+  "description": "ExecStep executes an external program following Terraform's external data source protocol.",
+  "fields": [
+    {
+      "name": "Program",
+      "yamlKey": "program",
+      "type": "[]string",
+      "required": true,
+      "template": true,
+      "description": "Program is the command to execute. The first element is the program path,\nsubsequent elements are arguments.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Input",
+      "yamlKey": "input",
+      "type": "map[string]any",
+      "required": false,
+      "template": false,
+      "description": "Input is passed to the program as JSON on stdin.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "WorkingDir",
+      "yamlKey": "working_dir",
+      "type": "string",
+      "required": false,
+      "template": false,
+      "description": "WorkingDir is the working directory for the command. Relative paths are\nresolved from the current working directory.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Timeout",
+      "yamlKey": "timeout",
+      "type": "string",
+      "required": false,
+      "template": false,
+      "description": "Timeout is the maximum duration to wait for the command to complete.\nDefaults to \"30s\".",
+      "enum": null,
+      "ref": null,
+      "default": "30s"
+    },
+    {
+      "name": "Format",
+      "yamlKey": "format",
+      "type": "string",
+      "required": false,
+      "template": false,
+      "description": "Format specifies how to interpret the program's output.\n\"json\" (default): parse stdout as JSON\n\"raw\": base64 encode stdout",
+      "enum": [
+        "json",
+        "raw"
+      ],
+      "ref": null,
+      "default": null
+    },
+    {
+      "name": "Env",
+      "yamlKey": "env",
+      "type": "map[string]string",
+      "required": false,
+      "template": true,
+      "description": "Env specifies additional environment variables for the command.\nThese are merged with the parent environment.",
+      "enum": null,
+      "ref": null,
+      "default": null
+    }
+  ]
+}

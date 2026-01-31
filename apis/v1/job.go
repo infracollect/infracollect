@@ -28,9 +28,37 @@ type TerraformCollector struct {
 type Step struct {
 	ID                  string                   `yaml:"id" json:"id"`
 	Collector           *string                  `yaml:"collector,omitempty" json:"collector,omitempty" validate:"required_with=TerraformDataSource HTTPGet"`
-	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet"`
-	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource"`
-	Static              *StaticStep              `yaml:"static,omitempty" json:"static,omitempty" validate:"excluded_with=TerraformDataSource HTTPGet Collector"`
+	TerraformDataSource *TerraformDataSourceStep `yaml:"terraform_datasource,omitempty" json:"terraform_datasource,omitempty" validate:"excluded_with=HTTPGet Static Exec"`
+	HTTPGet             *HTTPGetStep             `yaml:"http_get,omitempty" json:"http_get,omitempty" validate:"excluded_with=TerraformDataSource Static Exec"`
+	Static              *StaticStep              `yaml:"static,omitempty" json:"static,omitempty" validate:"excluded_with=TerraformDataSource HTTPGet Exec Collector"`
+	Exec                *ExecStep                `yaml:"exec,omitempty" json:"exec,omitempty" validate:"excluded_with=TerraformDataSource HTTPGet Static Collector"`
+}
+
+// ExecStep executes an external program following Terraform's external data source protocol.
+type ExecStep struct {
+	// Program is the command to execute. The first element is the program path,
+	// subsequent elements are arguments.
+	Program []string `yaml:"program" json:"program" validate:"required,min=1" template:""`
+
+	// Input is passed to the program as JSON on stdin.
+	Input map[string]any `yaml:"input,omitempty" json:"input,omitempty"`
+
+	// WorkingDir is the working directory for the command. Relative paths are
+	// resolved from the current working directory.
+	WorkingDir *string `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
+
+	// Timeout is the maximum duration to wait for the command to complete.
+	// Defaults to "30s".
+	Timeout *string `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+
+	// Format specifies how to interpret the program's output.
+	// "json" (default): parse stdout as JSON
+	// "raw": base64 encode stdout
+	Format *string `yaml:"format,omitempty" json:"format,omitempty" validate:"omitempty,oneof=json raw"`
+
+	// Env specifies additional environment variables for the command.
+	// These are merged with the parent environment.
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty" template:""`
 }
 
 // TerraformDataSourceStep is a step that uses a Terraform provider's data source.
@@ -121,12 +149,8 @@ type ArchiveSpec struct {
 	// Compression algorithm
 	Compression string `yaml:"compression,omitempty" json:"compression,omitempty" validate:"omitempty,oneof=gzip zstd none"`
 
-	// Name is the archive base name. Supports template variables:
-	//   - $JOB_NAME: The job's metadata.name
-	//   - $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z)
-	//   - $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)
+	// Name is the archive base name, defaults to the job name.
 	// The appropriate file extension (e.g., ".tar.gz") is automatically appended.
-	// Default: "$JOB_NAME".
 	Name string `yaml:"name,omitempty" json:"name,omitempty" template:""`
 }
 

@@ -47,6 +47,7 @@ var targetStructs = map[string]string{
 	"TerraformDataSourceStep": "terraform-datasource-step.json",
 	"HTTPGetStep":             "http-get-step.json",
 	"StaticStep":              "static-step.json",
+	"ExecStep":                "exec-step.json",
 	// Output
 	"OutputSpec":         "output-spec.json",
 	"ArchiveSpec":        "archive-spec.json",

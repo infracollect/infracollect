@@ -36,10 +36,10 @@
       "type": "string",
       "required": false,
       "template": true,
-      "description": "Name is the archive base name. Supports template variables:\n- $JOB_NAME: The job's metadata.name\n- $JOB_DATE_ISO8601: Current UTC time in ISO8601 basic format (20060102T150405Z)\n- $JOB_DATE_RFC3339: Current UTC time in RFC3339 format (2006-01-02T15:04:05Z)\nThe appropriate file extension (e.g., \".tar.gz\") is automatically appended.\nDefault: \"$JOB_NAME\".",
+      "description": "Name is the archive base name, defaults to the job name.\nThe appropriate file extension (e.g., \".tar.gz\") is automatically appended.",
       "enum": null,
       "ref": null,
-      "default": "$JOB_NAME"
+      "default": null
     }
   ]
 }

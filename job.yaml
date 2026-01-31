@@ -37,6 +37,10 @@ spec:
         value: |
           {"foo": "${JOB_NAME}"}
         parse_as: json
+    - id: helm
+      exec:
+        program: ["helm", "list", "--all-namespaces", "--output", "json"]
+        format: json
   output:
     encoding:
       json:

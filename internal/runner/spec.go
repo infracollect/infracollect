@@ -46,6 +46,8 @@ func ResolveStepSpec(s v1.Step) (ResolvedSpec, error) {
 		return ResolvedSpec{Kind: "http_get", Spec: *s.HTTPGet}, nil
 	case s.Static != nil:
 		return ResolvedSpec{Kind: "static", Spec: *s.Static}, nil
+	case s.Exec != nil:
+		return ResolvedSpec{Kind: "exec", Spec: *s.Exec}, nil
 	default:
 		return ResolvedSpec{}, &InvalidStepSpecError{Step: s}
 	}

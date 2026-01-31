@@ -1,0 +1,117 @@
+---
+title: Exec
+description: Reference for the Exec step configuration.
+---
+
+import PropertyReference from '../../../../components/PropertyReference.astro';
+import execStep from '../../../../data/schemas/exec-step.json';
+
+The exec step executes an external program and captures its output. It follows Terraform's external data source protocol, making it easy to integrate with existing scripts and tools.
+
+## Configuration
+
+<PropertyReference schema={execStep} />
+
+## Protocol
+
+The exec step communicates with the external program using a simple protocol:
+
+- **Input**: The `input` field is encoded as JSON and passed to the program on stdin
+- **Output**: The program's stdout is captured and processed based on the `format` setting
+- **Errors**: If the program exits with a non-zero status, stderr is included in the error message
+
+## Output format
+
+The `format` option controls how stdout is interpreted:
+
+- **json** (default): Parses stdout as JSON and includes the resulting structure in the output
+- **raw**: Base64 encodes stdout and returns it as `{"output": "<base64-encoded-content>"}`
+
+## Environment
+
+The exec step inherits the parent process environment. Additional variables can be added or overridden using the `env` field. Environment values support template expansion.
+
+## Examples
+
+### Run a shell command
+
+```yaml
+steps:
+  - id: date
+    exec:
+      program: ["date", "+%Y-%m-%d"]
+      format: raw
+```
+
+### Process JSON with jq
+
+```yaml
+steps:
+  - id: transform
+    exec:
+      program: ["jq", ".items | map(.name)"]
+      input:
+        items:
+          - name: foo
+          - name: bar
+      format: json
+```
+
+### Run a script with environment variables
+
+```yaml
+steps:
+  - id: api-call
+    exec:
+      program: ["./scripts/fetch-data.sh"]
+      working_dir: ./scripts
+      timeout: 60s
+      env:
+        API_KEY: ${API_KEY}
+        API_URL: https://api.example.com
+```
+
+### Collect Helm releases
+
+```yaml
+steps:
+  - id: helm-releases
+    exec:
+      program: ["helm", "list", "--all-namespaces", "--output", "json"]
+      timeout: 60s
+      format: json
+```
+
+### Use kubectl to get resources
+
+```yaml
+steps:
+  - id: pods
+    exec:
+      program: ["kubectl", "get", "pods", "-A", "-o", "json"]
+      format: json
+```
+
+### Template expansion in program arguments
+
+The `program` field supports template expansion, allowing you to use environment variables in command arguments:
+
+```yaml
+steps:
+  - id: fetch-cluster
+    exec:
+      program: ["kubectl", "get", "pods", "-A", "-o", "json", "--context", "${KUBE_CONTEXT}"]
+      format: json
+```
+
+### Custom script with stdin input
+
+```yaml
+steps:
+  - id: custom-transform
+    exec:
+      program: ["python3", "-c", "import json, sys; data = json.load(sys.stdin); print(json.dumps({'count': len(data['items'])}))"]
+      input:
+        items: [1, 2, 3, 4, 5]
+      format: json
+```

@@ -431,7 +431,20 @@ func (c *Collector) Close() error {
 3. **Add tests** alongside implementation
 4. **Update documentation** (docs/ and code comments)
 5. **Add examples** if the feature is user-facing (e.g., job.yaml)
-6. **Update AGENTS.md** if patterns change
+6. **Update CLAUDE.md** if patterns change
+
+## Adding New Step Types or Collectors
+
+When adding a new step type (like `exec`, `static`) or collector (like `terraform`, `http`):
+
+1. **Define the struct** in `apis/v1/job.go` with appropriate YAML/JSON tags, validation, and template tags
+2. **Update `ResolveStepSpec`** (or `ResolveCollectorSpec`) in `internal/runner/spec.go`
+3. **Implement the step/collector** in `internal/engine/steps/` or `internal/integrations/`
+4. **Register** in `internal/engine/steps/register.go` or the appropriate registry
+5. **Add to gen-docs.go**: Add the struct name to `targetStructs` map in `scripts/gen-docs.go`
+6. **Regenerate schema docs**: Run `go run scripts/gen-docs.go` to generate JSON schema files
+7. **Create reference documentation** in `website/src/content/docs/reference/steps/` or `reference/collectors/`
+8. **Add tests** for the new functionality
 
 ## Questions?
 

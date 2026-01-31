@@ -317,6 +317,56 @@ func TestExpand(t *testing.T) {
 	}
 }
 
+func TestExpandTemplates_SliceOfString(t *testing.T) {
+	type S struct {
+		Args []string `template:""`
+	}
+	in := S{Args: []string{"--name=${NAME}", "--env=${ENV}", "literal"}}
+	err := ExpandTemplates(&in, map[string]string{"NAME": "test", "ENV": "prod"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--name=test", "--env=prod", "literal"}, in.Args)
+}
+
+func TestExpandTemplates_SliceOfStringNil(t *testing.T) {
+	type S struct {
+		Args []string `template:""`
+	}
+	in := S{Args: nil}
+	err := ExpandTemplates(&in, map[string]string{})
+	require.NoError(t, err)
+	assert.Nil(t, in.Args)
+}
+
+func TestExpandTemplates_SliceOfStringEmpty(t *testing.T) {
+	type S struct {
+		Args []string `template:""`
+	}
+	in := S{Args: []string{}}
+	err := ExpandTemplates(&in, map[string]string{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{}, in.Args)
+}
+
+func TestExpandTemplates_SliceOfStringWithoutTagNotExpanded(t *testing.T) {
+	type S struct {
+		Args []string
+	}
+	in := S{Args: []string{"${X}"}}
+	err := ExpandTemplates(&in, map[string]string{"X": "y"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"${X}"}, in.Args)
+}
+
+func TestExpandTemplates_SliceOfStringMissingVariable(t *testing.T) {
+	type S struct {
+		Args []string `template:""`
+	}
+	in := S{Args: []string{"${MISSING}"}}
+	err := ExpandTemplates(&in, map[string]string{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MISSING")
+}
+
 func TestExpandMap(t *testing.T) {
 	tests := []struct {
 		name       string

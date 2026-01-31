@@ -9,12 +9,12 @@ import (
 
 // ExpandTemplates walks the struct (or slice of structs) pointed to by in and
 // updates template fields in place. It explores all nested structs, *struct,
-// map[string]string, and []struct/[]*struct recursively. Only string and *string
-// fields are gated by the `template` struct tag: `template` or `template:""`
+// map[string]string, []string, and []struct/[]*struct recursively. String, *string,
+// and []string fields are gated by the `template` struct tag: `template` or `template:""`
 // means expand via Expand; `template:"-"` means skip. All other explorable types
 // are traversed without requiring the tag.
 //
-// Types: string, *string (template tag required; *string nil left as-is),
+// Types: string, *string, []string (template tag required; nil left as-is),
 // map[string]string (always ExpandMap; nil left as-is), struct (recurse),
 // *struct (recurse; nil skipped), []struct, []*struct (recurse). Unexported
 // fields are skipped.
@@ -38,15 +38,25 @@ func expandSliceInPlace(v reflect.Value, variables map[string]string) error {
 		return nil
 	}
 	elemTyp := v.Type().Elem()
-	if elemTyp.Kind() == reflect.Struct {
+	switch {
+	case elemTyp.Kind() == reflect.String:
+		for i := 0; i < v.Len(); i++ {
+			el := v.Index(i)
+			expanded, err := Expand(el.String(), variables)
+			if err != nil {
+				return err
+			}
+			el.SetString(expanded)
+		}
+		return nil
+	case elemTyp.Kind() == reflect.Struct:
 		for i := 0; i < v.Len(); i++ {
 			if err := expandStructInPlace(v.Index(i), variables); err != nil {
 				return err
 			}
 		}
 		return nil
-	}
-	if elemTyp.Kind() == reflect.Ptr && elemTyp.Elem().Kind() == reflect.Struct {
+	case elemTyp.Kind() == reflect.Ptr && elemTyp.Elem().Kind() == reflect.Struct:
 		for i := 0; i < v.Len(); i++ {
 			el := v.Index(i)
 			if el.IsNil() {
@@ -57,8 +67,9 @@ func expandSliceInPlace(v reflect.Value, variables map[string]string) error {
 			}
 		}
 		return nil
+	default:
+		return nil
 	}
-	return nil
 }
 
 func expandStructInPlace(v reflect.Value, variables map[string]string) error {
@@ -129,6 +140,9 @@ func expandStructInPlace(v reflect.Value, variables map[string]string) error {
 			}
 
 		case reflect.Slice:
+			if field.Type().Elem().Kind() == reflect.String && (!hasTemplate || tag == "-") {
+				continue
+			}
 			if err := expandSliceInPlace(field, variables); err != nil {
 				return err
 			}
