@@ -29,28 +29,48 @@ local linters = new Mapping<String, Step> {
     stage = List("website/src/content/docs/reference/cli.md")
   }
   ["gomod-tidy"] = Builtins.gomod_tidy
-  ["go-vuln-check"] = (Builtins.go_vuln_check) {
-    check = "govulncheck ./..."
-  }
   ["actionlint"] = Builtins.actionlint
   ["mise"] = Builtins.mise
   ["rumdl"] = Builtins.rumdl
+}
+
+local extensive = new Mapping<String, Step> {
+  ["go-vuln-check"] = (Builtins.go_vuln_check) {
+    check = "govulncheck ./..."
+  }
+}
+
+local extra = new Mapping<String, Step> {
+  ["go-test"] {
+    check = "go test ./..."
+  }
 }
 
 hooks {
   ["pre-commit"] {
     fix = true // automatically modify files with available linter fixes
     stash = "git" // stashes unstaged changes while running fix steps
-    steps {
-      ...linters // add all linters defined above
-    }
+    steps = linters // add all linters defined above
   }
   // "fix" and "check" are special steps for `hk fix` and `hk check` commands
   ["fix"] {
     fix = true
-    steps = linters
+    steps {
+      ...linters
+      ...extensive
+    }
   }
   ["check"] {
-    steps = linters
+    steps {
+      ...linters
+      ...extensive
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ...linters
+      ...extensive
+      ...extra
+    }
   }
 }
