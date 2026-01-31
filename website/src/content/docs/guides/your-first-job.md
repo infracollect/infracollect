@@ -6,6 +6,7 @@ description: Create your first job file
 Create a `job.yaml` file:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: test

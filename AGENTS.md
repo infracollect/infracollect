@@ -179,7 +179,8 @@ func TestParseCollectJob(t *testing.T) {
     }{
         {
             name: "valid job",
-            input: `kind: CollectJob
+            input: `apiVersion: v1
+kind: CollectJob
 metadata:
   name: test
 spec:

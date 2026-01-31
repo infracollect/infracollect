@@ -1,9 +1,10 @@
 package v1
 
 type CollectJob struct {
-	Kind     string         `yaml:"kind" json:"kind" validate:"required,eq=CollectJob"`
-	Metadata Metadata       `yaml:"metadata" json:"metadata"`
-	Spec     CollectJobSpec `yaml:"spec" json:"spec"`
+	ApiVersion string         `yaml:"apiVersion" json:"apiVersion" validate:"required,eq=v1"`
+	Kind       string         `yaml:"kind" json:"kind" validate:"required,eq=CollectJob"`
+	Metadata   Metadata       `yaml:"metadata" json:"metadata"`
+	Spec       CollectJobSpec `yaml:"spec" json:"spec"`
 }
 
 type CollectJobSpec struct {

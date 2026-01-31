@@ -27,6 +27,7 @@ go install github.com/infracollect/infracollect/cmd/infracollect@latest
 Create a file called `job.yaml`:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: my-first-job

@@ -71,6 +71,7 @@ A `CollectJob` is a YAML definition that describes:
 Example:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: k8s-deployments

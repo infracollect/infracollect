@@ -6,6 +6,7 @@ description: Collect data from AWS
 Collect data from AWS:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: aws

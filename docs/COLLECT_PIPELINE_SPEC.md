@@ -28,6 +28,7 @@ stdout cannot be used with archive.
 ## Schema
 
 ```yaml
+apiVersion: v1 # Required: API version (currently only "v1")
 kind: CollectJob
 metadata:
   name: string # Required: Pipeline name
@@ -93,6 +94,12 @@ spec:
 ## Field Descriptions
 
 ### Top-Level Fields
+
+#### `apiVersion` (required)
+
+- **Type**: `string`
+- **Value**: Must be `"v1"`
+- **Description**: API version for the CollectJob schema. Allows for backward-compatible changes in future versions.
 
 #### `kind` (required)
 
@@ -515,23 +522,24 @@ spec:
 
 ## Validation Rules
 
-1. **Kind Validation**: `kind` must be `"CollectJob"`
-2. **Metadata Validation**: `metadata.name` is required and must be a valid identifier
-3. **Collector Validation**:
+1. **API Version Validation**: `apiVersion` must be `"v1"`
+2. **Kind Validation**: `kind` must be `"CollectJob"`
+3. **Metadata Validation**: `metadata.name` is required and must be a valid identifier
+4. **Collector Validation**:
    - Collectors are optional (a job with only static steps needs no collectors)
    - Each collector must have a unique `id`
    - Each collector must have exactly one of: `terraform` or `http`
    - Terraform collectors must have `provider` and `args`
    - HTTP collectors must have `base_url`
-4. **Step Validation**:
+5. **Step Validation**:
    - At least one step must be defined
    - Each step must have a unique `id`
    - Each step must have exactly one of: `terraform_datasource`, `http_get`, or `static`
    - Steps with `terraform_datasource` or `http_get` must have a `collector` reference
    - Steps with `static` must not have a `collector` reference
    - Static steps must have exactly one of: `filepath` or `value`
-5. **Reference Validation**: All collector references in steps must exist and be of compatible type
-6. **Output Validation**:
+6. **Reference Validation**: All collector references in steps must exist and be of compatible type
+7. **Output Validation**:
    - If `output.encoding` is specified, exactly one encoding type should be set
    - If `output.sink` is specified, exactly one sink type should be set
    - If `output.archive` is specified, `output.sink` must be filesystem or S3; stdout cannot be used with archive
@@ -542,6 +550,7 @@ spec:
 ### Kubernetes Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: k8s-deployments
@@ -577,6 +586,7 @@ spec:
 ### Multi-Collector Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: multi-cloud-inventory
@@ -636,6 +646,7 @@ spec:
 ### AWS Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: aws-ec2-inventory
@@ -660,6 +671,7 @@ spec:
 ### HTTP API Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: api-collection
@@ -702,6 +714,7 @@ spec:
 ### Mixed Collectors Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: hybrid-collection
@@ -738,6 +751,7 @@ spec:
 ### Static Step Example
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: static-data-collection
@@ -774,6 +788,7 @@ spec:
 #### Pretty-Printed JSON to Stdout
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: k8s-deployments
@@ -803,6 +818,7 @@ spec:
 #### Compact JSON to Folder
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: aws-inventory
@@ -831,6 +847,7 @@ spec:
 #### Pretty-Printed JSON to Filesystem with Prefix
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: multi-cloud-inventory
@@ -872,6 +889,7 @@ spec:
 Bundle all step outputs into a single compressed archive:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: archive-test
@@ -911,6 +929,7 @@ and `posts.json`. Use `compression: zstd` for `.tar.zst` or `compression: none` 
 When `output` is not specified, the default behavior is compact JSON to stdout:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: simple-collection
@@ -935,6 +954,7 @@ spec:
 Using AWS S3 with environment/IAM credentials:
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: aws-inventory
@@ -962,6 +982,7 @@ spec:
 #### S3 Sink - Cloudflare R2
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: r2-export
@@ -989,6 +1010,7 @@ spec:
 #### S3 Sink - MinIO
 
 ```yaml
+apiVersion: v1
 kind: CollectJob
 metadata:
   name: local-export
