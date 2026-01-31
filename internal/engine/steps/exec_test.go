@@ -77,7 +77,7 @@ func TestExecStep_JSONOutput(t *testing.T) {
 
 	expected := map[string]any{"key": "value", "number": float64(42)}
 	assert.Equal(t, expected, result.Data)
-	assert.Equal(t, "json", result.Meta["format"])
+	assert.Equal(t, "json", result.Meta["exec_format"])
 }
 
 func TestExecStep_RawOutput(t *testing.T) {
@@ -95,7 +95,7 @@ func TestExecStep_RawOutput(t *testing.T) {
 	data, ok := result.Data.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, expectedEncoded, data["output"])
-	assert.Equal(t, "raw", result.Meta["format"])
+	assert.Equal(t, "raw", result.Meta["exec_format"])
 }
 
 func TestExecStep_DefaultFormat(t *testing.T) {
@@ -109,7 +109,7 @@ func TestExecStep_DefaultFormat(t *testing.T) {
 
 	expected := map[string]any{"default": true}
 	assert.Equal(t, expected, result.Data)
-	assert.Equal(t, "json", result.Meta["format"])
+	assert.Equal(t, "json", result.Meta["exec_format"])
 }
 
 func TestExecStep_Input(t *testing.T) {
@@ -236,8 +236,8 @@ func TestExecStep_Meta(t *testing.T) {
 	result, err := step.Resolve(t.Context())
 	require.NoError(t, err)
 
-	assert.Equal(t, "sh -c echo '{\"ok\": true}'", result.Meta["program"])
-	assert.Equal(t, "json", result.Meta["format"])
+	assert.Equal(t, "sh -c echo '{\"ok\": true}'", result.Meta["exec_program"])
+	assert.Equal(t, "json", result.Meta["exec_format"])
 }
 
 func TestExecStep_CommandNotFound(t *testing.T) {
