@@ -27,7 +27,7 @@ func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Re
 			return nil, err
 		}
 
-		collector, err := registry.CreateCollector(ctx, resolvedSpec.Kind, resolvedSpec.Spec)
+		collector, err := registry.CreateCollector(resolvedSpec.Kind, resolvedSpec.Spec)
 		if err != nil {
 			return nil, err
 		}
@@ -54,7 +54,7 @@ func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Re
 			collector = foundCollector
 		}
 
-		step, err := registry.CreateStep(ctx, resolvedSpec.Kind, stepSpec.ID, collector, resolvedSpec.Spec)
+		step, err := registry.CreateStep(resolvedSpec.Kind, stepSpec.ID, collector, resolvedSpec.Spec)
 		if err != nil {
 			return nil, err
 		}

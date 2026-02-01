@@ -1,11 +1,8 @@
 package steps
 
 import (
-	"context"
-
 	v1 "github.com/infracollect/infracollect/apis/v1"
 	"github.com/infracollect/infracollect/internal/engine"
-	"go.uber.org/zap"
 )
 
 func Register(registry *engine.Registry) {
@@ -19,7 +16,7 @@ func Register(registry *engine.Registry) {
 	)
 }
 
-func newStaticStep(_ context.Context, _ *zap.Logger, id string, spec v1.StaticStep) (engine.Step, error) {
+func newStaticStep(_ *engine.RegistryHelper, id string, spec v1.StaticStep) (engine.Step, error) {
 	return NewStaticStep(id, StaticStepConfig{
 		Filepath: spec.Filepath,
 		Value:    spec.Value,
@@ -27,13 +24,15 @@ func newStaticStep(_ context.Context, _ *zap.Logger, id string, spec v1.StaticSt
 	})
 }
 
-func newExecStep(_ context.Context, logger *zap.Logger, id string, spec v1.ExecStep) (engine.Step, error) {
-	return NewExecStep(id, logger, ExecStepConfig{
+func newExecStep(helper *engine.RegistryHelper, id string, spec v1.ExecStep) (engine.Step, error) {
+	allowedEnv := engine.MustGetRegistryDependency[[]string](helper, engine.AllowedEnvVarsDepKey)
+	return NewExecStep(id, helper.Logger(), ExecStepConfig{
 		Program:    spec.Program,
 		Input:      spec.Input,
 		WorkingDir: spec.WorkingDir,
 		Timeout:    spec.Timeout,
 		Format:     spec.Format,
 		Env:        spec.Env,
+		AllowedEnv: allowedEnv,
 	})
 }

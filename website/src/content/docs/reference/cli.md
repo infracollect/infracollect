@@ -41,9 +41,10 @@ USAGE:
    infracollect collect [options] The job file to collect data from
 
 OPTIONS:
-   --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
-   --trust-remote                                 Trust remote job file
-   --help, -h                                     show help
+   --pass-env string [ --pass-env string ]  Environment variables to pass through to job execution (can be repeated)
+   --pass-all-env                           Pass all environment variables through to job execution
+   --trust-remote                           Trust remote job file
+   --help, -h                               show help
 
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging
@@ -61,8 +62,8 @@ USAGE:
    infracollect validate [options] The job file to validate
 
 OPTIONS:
-   --allowed-env string [ --allowed-env string ]  Environment variables allowed in job configuration (can be repeated)
-   --help, -h                                     show help
+   --pass-env string [ --pass-env string ]  Environment variables to pass through to job execution (can be repeated)
+   --help, -h                               show help
 
 GLOBAL OPTIONS:
    --debug, -d                    Enable debug logging

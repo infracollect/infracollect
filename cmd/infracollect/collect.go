@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/infracollect/infracollect/internal/runner"
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -22,8 +23,12 @@ var collectCommand = &cli.Command{
 	Usage: "Collect infrastructure data",
 	Flags: []cli.Flag{
 		&cli.StringSliceFlag{
-			Name:  "allowed-env",
-			Usage: "Environment variables allowed in job configuration (can be repeated)",
+			Name:  "pass-env",
+			Usage: "Environment variables to pass through to job execution (can be repeated)",
+		},
+		&cli.BoolFlag{
+			Name:  "pass-all-env",
+			Usage: "Pass all environment variables through to job execution",
 		},
 		&cli.BoolFlag{
 			Name:  "trust-remote",
@@ -76,7 +81,19 @@ var collectCommand = &cli.Command{
 			return fmt.Errorf("failed to parse job: %w", err)
 		}
 
-		allowedEnv := command.StringSlice("allowed-env")
+		var allowedEnv []string
+		if command.Bool("pass-all-env") {
+			logger.Warn("allowing all environment variables to be used in job configuration")
+			allowedEnv = lo.Map(os.Environ(), func(kv string, _ int) string {
+				name, _, ok := strings.Cut(kv, "=")
+				if !ok {
+					return ""
+				}
+				return name
+			})
+		} else {
+			allowedEnv = command.StringSlice("pass-env")
+		}
 
 		variables, err := runner.BuildVariables(job, allowedEnv)
 		if err != nil {
@@ -87,7 +104,7 @@ var collectCommand = &cli.Command{
 			return fmt.Errorf("failed to expand templates: %w", err)
 		}
 
-		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), job)
+		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), job, allowedEnv)
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}

@@ -10,10 +10,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/infracollect/infracollect/internal/engine"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +26,10 @@ const (
 	defaultFormat  = "json"
 )
 
+var (
+	safeEnvVars = []string{"PATH", "HOME", "TMPDIR", "SHELL", "USER", "LOGNAME", "TERM", "LANG"}
+)
+
 type ExecStepConfig struct {
 	Program    []string
 	Input      map[string]any
@@ -31,6 +37,7 @@ type ExecStepConfig struct {
 	Timeout    *string
 	Format     *string
 	Env        map[string]string
+	AllowedEnv []string
 }
 
 func NewExecStep(name string, logger *zap.Logger, cfg ExecStepConfig) (engine.Step, error) {
@@ -75,7 +82,16 @@ func NewExecStep(name string, logger *zap.Logger, cfg ExecStepConfig) (engine.St
 			cmd.Dir = workingDir
 		}
 
-		cmd.Env = os.Environ()
+		// Build the environment for the child process.
+		allowedVariables := append(cfg.AllowedEnv, safeEnvVars...)
+		cmd.Env = lo.Filter(os.Environ(), func(kv string, _ int) bool {
+			name, _, ok := strings.Cut(kv, "=")
+			if !ok {
+				return false
+			}
+			return slices.Contains(allowedVariables, name)
+		})
+
 		for k, v := range cfg.Env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 		}

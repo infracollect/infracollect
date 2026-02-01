@@ -50,10 +50,11 @@ func BuildRegistry(logger *zap.Logger) *engine.Registry {
 	return registry
 }
 
-func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob) (*Runner, error) {
+func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob, allowedEnv []string) (*Runner, error) {
 	logger.Info("creating runner", zap.String("job_name", job.Metadata.Name))
 
 	registry := BuildRegistry(logger)
+	registry.RegisterDependency(engine.AllowedEnvVarsDepKey, allowedEnv)
 
 	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), registry, job)
 	if err != nil {

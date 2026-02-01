@@ -168,6 +168,54 @@ func TestExecStep_Environment(t *testing.T) {
 	assert.Equal(t, "true", data["home_set"])
 }
 
+func TestExecStep_AllowedEnvFiltering(t *testing.T) {
+	// Set up two env vars: one secret and one allowed
+	require.NoError(t, os.Setenv("SECRET_VAR", "topsecret"))
+	require.NoError(t, os.Setenv("ALLOWED_VAR", "allowed"))
+	defer func() {
+		_ = os.Unsetenv("SECRET_VAR")
+		_ = os.Unsetenv("ALLOWED_VAR")
+	}()
+
+	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+		Program:    []string{"sh", "-c", `echo "{\"secret\": \"$SECRET_VAR\", \"allowed\": \"$ALLOWED_VAR\"}"`},
+		Format:     lo.ToPtr("json"),
+		AllowedEnv: []string{"ALLOWED_VAR"},
+	})
+	require.NoError(t, err)
+
+	result, err := step.Resolve(t.Context())
+	require.NoError(t, err)
+
+	data, ok := result.Data.(map[string]any)
+	require.True(t, ok)
+	// SECRET_VAR should be empty (not passed through), ALLOWED_VAR should be present
+	assert.Equal(t, "", data["secret"])
+	assert.Equal(t, "allowed", data["allowed"])
+}
+
+func TestExecStep_AllowedEnvEmptyOnlyPassesSafeVars(t *testing.T) {
+	// When AllowedEnv is empty/nil, only safe vars (PATH, HOME, etc.) are passed.
+	// This ensures security by default - users must explicitly allow env vars.
+	require.NoError(t, os.Setenv("SECRET_VAR", "topsecret"))
+	defer func() { _ = os.Unsetenv("SECRET_VAR") }()
+
+	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+		Program: []string{"sh", "-c", `echo "{\"secret\": \"$SECRET_VAR\"}"`},
+		Format:  lo.ToPtr("json"),
+		// AllowedEnv is nil/unset here - SECRET_VAR should NOT be passed
+	})
+	require.NoError(t, err)
+
+	result, err := step.Resolve(t.Context())
+	require.NoError(t, err)
+
+	data, ok := result.Data.(map[string]any)
+	require.True(t, ok)
+	// SECRET_VAR is not in safeEnvVars, so it should be empty
+	assert.Equal(t, "", data["secret"])
+}
+
 func TestExecStep_WorkingDirectory(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skipping on Windows")

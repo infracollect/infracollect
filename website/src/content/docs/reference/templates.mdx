@@ -26,13 +26,19 @@ The following variables are always available:
 
 ## Environment Variables
 
-Additional environment variables can be made available using the `--allowed-env` flag:
+Additional environment variables can be made available using the `--pass-env` flag:
 
 ```bash
-infracollect collect job.yaml --allowed-env AWS_REGION --allowed-env ENVIRONMENT
+infracollect collect job.yaml --pass-env AWS_REGION --pass-env ENVIRONMENT
 ```
 
-Only explicitly allowed environment variables can be referenced. If an allowed variable is not set in the environment, the job will fail.
+Only explicitly passed environment variables can be referenced. If a passed variable is not set in the environment, the job will fail.
+
+To pass all environment variables (use with caution in trusted environments):
+
+```bash
+infracollect collect job.yaml --pass-all-env
+```
 
 ## Example
 
@@ -68,7 +74,7 @@ spec:
 Run with:
 
 ```bash
-infracollect collect job.yaml --allowed-env API_USER --allowed-env API_PASSWORD
+infracollect collect job.yaml --pass-env API_USER --pass-env API_PASSWORD
 ```
 
 ## Supported Fields

@@ -17,8 +17,8 @@ var validateCommand = &cli.Command{
 	Usage: "Validate a job file",
 	Flags: []cli.Flag{
 		&cli.StringSliceFlag{
-			Name:  "allowed-env",
-			Usage: "Environment variables allowed in job configuration (can be repeated)",
+			Name:  "pass-env",
+			Usage: "Environment variables to pass through to job execution (can be repeated)",
 		},
 	},
 	Arguments: []cli.Argument{
@@ -49,7 +49,7 @@ var validateCommand = &cli.Command{
 			return fmt.Errorf("job file '%s' is invalid", jobFilename)
 		}
 
-		allowedEnv := command.StringSlice("allowed-env")
+		allowedEnv := command.StringSlice("pass-env")
 
 		variables, err := runner.BuildVariables(job, allowedEnv)
 		if err != nil {

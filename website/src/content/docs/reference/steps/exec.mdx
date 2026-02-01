@@ -29,7 +29,25 @@ The `format` option controls how stdout is interpreted:
 
 ## Environment
 
-The exec step inherits the parent process environment. Additional variables can be added or overridden using the `env` field. Environment values support template expansion.
+For security, the exec step does **not** inherit the full parent process environment. Instead, it passes through only:
+
+- **Safe variables**: `PATH`, `HOME`, `TMPDIR`, `SHELL`, `USER`, `LOGNAME`, `TERM`, `LANG`
+- **Passed variables**: Variables explicitly passed via the `--pass-env` CLI flag
+- **Step-defined variables**: Variables set in the step's `env` field
+
+Additional variables can be added using the `env` field. Environment values support template expansion.
+
+To pass additional environment variables from the parent process, use the `--pass-env` CLI flag:
+
+```bash
+infracollect collect job.yaml --pass-env AWS_REGION --pass-env KUBECONFIG
+```
+
+Or pass all environment variables (use with caution):
+
+```bash
+infracollect collect job.yaml --pass-all-env
+```
 
 ## Examples
 

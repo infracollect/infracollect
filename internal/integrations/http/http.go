@@ -1,12 +1,10 @@
 package http
 
 import (
-	"context"
 	"time"
 
 	v1 "github.com/infracollect/infracollect/apis/v1"
 	"github.com/infracollect/infracollect/internal/engine"
-	"go.uber.org/zap"
 )
 
 func Register(registry *engine.Registry) {
@@ -21,7 +19,7 @@ func Register(registry *engine.Registry) {
 	)
 }
 
-func newCollector(_ context.Context, _ *zap.Logger, spec v1.HTTPCollector) (engine.Collector, error) {
+func newCollector(_ *engine.RegistryHelper, spec v1.HTTPCollector) (engine.Collector, error) {
 	cfg := Config{
 		BaseURL:  spec.BaseURL,
 		Headers:  spec.Headers,
@@ -45,7 +43,7 @@ func newCollector(_ context.Context, _ *zap.Logger, spec v1.HTTPCollector) (engi
 	return NewCollector(cfg)
 }
 
-func newGetStep(_ context.Context, _ *zap.Logger, _ string, collector *Collector, spec v1.HTTPGetStep) (engine.Step, error) {
+func newGetStep(_ *engine.RegistryHelper, _ string, collector *Collector, spec v1.HTTPGetStep) (engine.Step, error) {
 	return NewGetStep(collector, GetConfig{
 		Path:         spec.Path,
 		Headers:      spec.Headers,
