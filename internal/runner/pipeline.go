@@ -16,12 +16,29 @@ import (
 	"go.uber.org/zap"
 )
 
-func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Registry, job v1.CollectJob) (*engine.Pipeline, error) {
+type Pipeline struct {
+	dag        *DirectedAcyclicGraph
+	collectors map[string]engine.Collector
+	steps      map[string]engine.Step
+}
+
+// BuildPipeline creates a pipeline backed by a DAG for ordered and parallel execution.
+// It will be the responsibility of the caller to execute the pipeline in order.
+func BuildPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Registry, job v1.CollectJob) (*Pipeline, error) {
 	logger.Info("creating pipeline", zap.String("job_name", job.Metadata.Name))
 	spec := job.Spec
-	pipeline := engine.NewPipeline(job.Metadata.Name)
+
+	pipeline := &Pipeline{
+		dag:        NewDirectedAcyclicGraph(),
+		collectors: make(map[string]engine.Collector),
+		steps:      make(map[string]engine.Step),
+	}
 
 	for _, collectorSpec := range spec.Collectors {
+		if _, collectorExists := pipeline.collectors[collectorSpec.ID]; collectorExists {
+			return nil, fmt.Errorf("collector %s already exists", collectorSpec.ID)
+		}
+
 		resolvedSpec, err := ResolveCollectorSpec(collectorSpec)
 		if err != nil {
 			return nil, err
@@ -32,14 +49,20 @@ func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Re
 			return nil, err
 		}
 
-		if err := pipeline.AddCollector(collectorSpec.ID, collector); err != nil {
-			return nil, fmt.Errorf("failed to add collector: %w", err)
+		pipeline.collectors[collectorSpec.ID] = collector
+
+		if err := pipeline.dag.AddNode(NodeTypeCollector, collectorSpec.ID); err != nil {
+			return nil, fmt.Errorf("failed to add collector %s to graph: %w", collectorSpec.ID, err)
 		}
 
 		logger.Debug("created collector", zap.String("collector_id", collectorSpec.ID), zap.String("collector_kind", collector.Kind()), zap.String("collector_name", collector.Name()))
 	}
 
 	for _, stepSpec := range spec.Steps {
+		if _, stepExists := pipeline.steps[stepSpec.ID]; stepExists {
+			return nil, fmt.Errorf("step %s already exists", stepSpec.ID)
+		}
+
 		resolvedSpec, err := ResolveStepSpec(stepSpec)
 		if err != nil {
 			return nil, err
@@ -47,7 +70,7 @@ func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Re
 
 		var collector engine.Collector
 		if stepSpec.Collector != nil {
-			foundCollector, ok := pipeline.GetCollector(*stepSpec.Collector)
+			foundCollector, ok := pipeline.collectors[*stepSpec.Collector]
 			if !ok {
 				return nil, fmt.Errorf("collector %q not found for step %q", *stepSpec.Collector, stepSpec.ID)
 			}
@@ -59,8 +82,9 @@ func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Re
 			return nil, err
 		}
 
-		if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
-			return nil, fmt.Errorf("failed to add step: %w", err)
+		pipeline.steps[stepSpec.ID] = step
+		if err := pipeline.dag.AddNode(NodeTypeStep, stepSpec.ID); err != nil {
+			return nil, fmt.Errorf("failed to add step %s to graph: %w", stepSpec.ID, err)
 		}
 
 		logger.Debug("created step", zap.String("step_id", stepSpec.ID), zap.String("step_kind", step.Kind()), zap.String("step_name", step.Name()))

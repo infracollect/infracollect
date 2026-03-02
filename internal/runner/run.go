@@ -17,7 +17,7 @@ import (
 type Runner struct {
 	logger   *zap.Logger
 	job      v1.CollectJob
-	pipeline *engine.Pipeline
+	pipeline *Pipeline
 	encoder  engine.Encoder
 	sink     engine.Sink
 }
@@ -56,7 +56,7 @@ func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob, allowedEnv 
 	registry := BuildRegistry(logger)
 	registry.RegisterDependency(engine.AllowedEnvVarsDepKey, allowedEnv)
 
-	pipeline, err := createPipeline(ctx, logger.Named("pipeline"), registry, job)
+	pipeline, err := BuildPipeline(ctx, logger.Named("pipeline"), registry, job)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pipeline: %w", err)
 	}
@@ -81,26 +81,42 @@ func New(ctx context.Context, logger *zap.Logger, job v1.CollectJob, allowedEnv 
 }
 
 func (r *Runner) Run(ctx context.Context) error {
-	for id, collector := range r.pipeline.Collectors() {
-		if err := collector.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start collector '%s' (%s): %w", id, collector.Name(), err)
-		}
+	nodes, err := r.pipeline.dag.TopologicalSort()
+	if err != nil {
+		return fmt.Errorf("could not build graph: %w", err)
 	}
 
-	defer func() {
-		// Use a background context for cleanup to ensure we always attempt cleanup
-		// even if the original context was cancelled
-		cleanupCtx := context.Background()
-		for id, collector := range r.pipeline.Collectors() {
-			if err := collector.Close(cleanupCtx); err != nil {
-				r.logger.Error("failed to close collector", zap.String("collector_id", id), zap.String("collector_name", collector.Name()), zap.Error(err))
-			}
-		}
-	}()
+	var results []engine.Result
 
-	results, err := r.pipeline.Run(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to run pipeline: %w", err)
+	for _, node := range nodes {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		switch node.Kind {
+		case NodeTypeCollector:
+			collector, ok := r.pipeline.collectors[node.ID]
+			if !ok {
+				return fmt.Errorf("collector node %s not registered", node.ID)
+			}
+
+			if err := collector.Start(ctx); err != nil {
+				return fmt.Errorf("failed to start collector '%s' (%s): %w", node.ID, collector.Name(), err)
+			}
+		case NodeTypeStep:
+			step, ok := r.pipeline.steps[node.ID]
+			if !ok {
+				return fmt.Errorf("step node %s not registered", node.ID)
+			}
+
+			result, err := step.Resolve(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to resolve step '%s': %w", node.ID, err)
+			}
+
+			result.ID = node.ID
+			results = append(results, result)
+		}
 	}
 
 	if err := r.WriteResults(ctx, results); err != nil {
@@ -110,29 +126,29 @@ func (r *Runner) Run(ctx context.Context) error {
 	return nil
 }
 
-// WriteResults writes results to the sink, encoding each result and wrapping with name/data
-// structure for stdout sinks.
-func (r *Runner) WriteResults(ctx context.Context, results map[string]engine.Result) error {
-	for stepID, result := range results {
+// WriteResults writes results to the sink in order, encoding each result and wrapping with
+// name/data structure for stdout sinks.
+func (r *Runner) WriteResults(ctx context.Context, results []engine.Result) error {
+	for _, result := range results {
 		reader, err := r.encoder.EncodeResult(ctx, result)
 		if err != nil {
-			return fmt.Errorf("failed to encode result for step %s: %w", stepID, err)
+			return fmt.Errorf("failed to encode result for step %s: %w", result.ID, err)
 		}
 
-		filename := fmt.Sprintf("%s.%s", stepID, r.encoder.FileExtension())
+		filename := fmt.Sprintf("%s.%s", result.ID, r.encoder.FileExtension())
 		if err := r.sink.Write(ctx, filename, reader); err != nil {
-			return fmt.Errorf("failed to write result for step %s: %w", stepID, err)
+			return fmt.Errorf("failed to write result for step %s: %w", result.ID, err)
 		}
 
 		if len(result.Meta) > 0 {
 			metaReader, err := r.encoder.EncodeMeta(ctx, result.Meta)
 			if err != nil {
-				return fmt.Errorf("failed to encode meta for step %s: %w", stepID, err)
+				return fmt.Errorf("failed to encode meta for step %s: %w", result.ID, err)
 			}
 
-			metaFilename := fmt.Sprintf("%s.meta.%s", stepID, r.encoder.FileExtension())
+			metaFilename := fmt.Sprintf("%s.meta.%s", result.ID, r.encoder.FileExtension())
 			if err := r.sink.Write(ctx, metaFilename, metaReader); err != nil {
-				return fmt.Errorf("failed to write meta for step %s: %w", stepID, err)
+				return fmt.Errorf("failed to write meta for step %s: %w", result.ID, err)
 			}
 		}
 	}
