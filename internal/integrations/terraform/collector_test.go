@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/infracollect/infracollect/internal/engine"
 	tfclient "github.com/infracollect/tf-data-client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -270,7 +271,7 @@ func TestCollector_ReadDataSource(t *testing.T) {
 			},
 			started:     false,
 			wantErr:     true,
-			errContains: "provider not started",
+			errContains: "collector not started",
 		},
 		{
 			name: "provider not configured",
@@ -337,17 +338,32 @@ func TestCollector_Close(t *testing.T) {
 	tests := []struct {
 		name        string
 		setupClient func() *mockClient
+		start       bool
 		wantErr     bool
 	}{
 		{
-			name: "successful close",
+			name: "close without start is a no-op",
 			setupClient: func() *mockClient {
-				return &mockClient{}
+				return &mockClient{
+					stopProviderFunc: func(ctx context.Context, config tfclient.ProviderConfig) error {
+						t.Fatalf("StopProvider must not be called when Start never ran")
+						return nil
+					},
+				}
 			},
+			start:   false,
 			wantErr: false,
 		},
 		{
-			name: "stop provider fails",
+			name: "successful close after start",
+			setupClient: func() *mockClient {
+				return &mockClient{}
+			},
+			start:   true,
+			wantErr: false,
+		},
+		{
+			name: "stop provider fails after start",
 			setupClient: func() *mockClient {
 				return &mockClient{
 					stopProviderFunc: func(ctx context.Context, config tfclient.ProviderConfig) error {
@@ -355,6 +371,7 @@ func TestCollector_Close(t *testing.T) {
 					},
 				}
 			},
+			start:   true,
 			wantErr: true,
 		},
 	}
@@ -364,6 +381,10 @@ func TestCollector_Close(t *testing.T) {
 			client := tt.setupClient()
 			collector, err := NewCollector(client, Config{Provider: "hashicorp/aws"})
 			require.NoError(t, err)
+
+			if tt.start {
+				require.NoError(t, collector.Start(t.Context()))
+			}
 
 			err = collector.Close(t.Context())
 
@@ -375,4 +396,16 @@ func TestCollector_Close(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestCollector_ReadDataSource_SentinelError(t *testing.T) {
+	client := &mockClient{}
+	collector, err := NewCollector(client, Config{Provider: "hashicorp/aws"})
+	require.NoError(t, err)
+
+	c := collector.(*Collector)
+	_, err = c.ReadDataSource(t.Context(), "aws_instance", nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, engine.ErrCollectorNotStarted),
+		"ReadDataSource should wrap engine.ErrCollectorNotStarted, got %v", err)
 }

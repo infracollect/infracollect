@@ -80,7 +80,7 @@ func (c *Collector) Start(ctx context.Context) error {
 
 func (c *Collector) ReadDataSource(ctx context.Context, name string, args map[string]any) (map[string]any, error) {
 	if c.provider == nil {
-		return nil, fmt.Errorf("provider not started")
+		return nil, fmt.Errorf("%w: %s", engine.ErrCollectorNotStarted, c.Name())
 	}
 
 	if !c.provider.IsConfigured() {
@@ -96,6 +96,10 @@ func (c *Collector) ReadDataSource(ctx context.Context, name string, args map[st
 }
 
 func (c *Collector) Close(ctx context.Context) error {
+	if c.provider == nil {
+		return nil
+	}
+	c.provider = nil
 	return c.client.StopProvider(ctx, c.providerConfig)
 }
 

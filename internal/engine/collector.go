@@ -1,6 +1,11 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrCollectorNotStarted = errors.New("collector not started")
 
 type Collector interface {
 	Named

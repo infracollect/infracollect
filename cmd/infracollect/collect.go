@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-cleanhttp"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/infracollect/infracollect/internal/runner"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v3"
@@ -76,9 +77,10 @@ var collectCommand = &cli.Command{
 		logger = logger.With(zap.String("job_filename", jobFilename))
 		logger.Info("parsing job file")
 
-		job, err := runner.ParseCollectJob(jobFile)
-		if err != nil {
-			return fmt.Errorf("failed to parse job: %w", err)
+		tmpl, diags := runner.ParseJobTemplate(jobFile, jobFilename)
+		if diags.HasErrors() {
+			writeDiags(diags)
+			return fmt.Errorf("failed to parse job file '%s'", jobFilename)
 		}
 
 		var allowedEnv []string
@@ -95,26 +97,35 @@ var collectCommand = &cli.Command{
 			allowedEnv = command.StringSlice("pass-env")
 		}
 
-		variables, err := runner.BuildVariables(job, allowedEnv)
+		registry, err := buildRegistry(logger.Named("registry"), allowedEnv)
 		if err != nil {
-			return fmt.Errorf("failed to build variables: %w", err)
+			return fmt.Errorf("failed to build registry: %w", err)
 		}
 
-		if err := runner.ExpandTemplates(&job, variables); err != nil {
-			return fmt.Errorf("failed to expand templates: %w", err)
+		r, diags := runner.New(
+			logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"),
+			tmpl,
+			registry,
+			allowedEnv,
+		)
+		if diags.HasErrors() {
+			writeDiags(diags)
+			return fmt.Errorf("failed to create runner for job '%s'", jobFilename)
 		}
 
-		r, err := runner.New(ctx, logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"), job, allowedEnv)
-		if err != nil {
-			return fmt.Errorf("failed to create runner: %w", err)
-		}
-
-		if err := r.Run(ctx); err != nil {
+		if _, err := r.Run(ctx); err != nil {
 			return fmt.Errorf("failed to run job: %w", err)
 		}
 
 		return nil
 	},
+}
+
+// writeDiags renders hcl.Diagnostics to stderr with source ranges and
+// color when the terminal supports it. Falls back to plain text otherwise.
+func writeDiags(diags hcl.Diagnostics) {
+	w := hcl.NewDiagnosticTextWriter(os.Stderr, nil, 100, true)
+	_ = w.WriteDiagnostics(diags)
 }
 
 func readJobFile(ctx context.Context, jobFilename string) ([]byte, bool, error) {

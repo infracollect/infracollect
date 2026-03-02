@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// Mock types for testing
 
 type mockCollector struct {
 	name string
@@ -32,168 +32,250 @@ func (m *mockStep) Resolve(context.Context) (Result, error) {
 }
 
 type testCollectorSpec struct {
-	Value string
+	Value string `hcl:"value"`
 }
 
 type testStepSpec struct {
-	Value string
+	Value string `hcl:"value"`
 }
 
-type wrongSpec struct{}
+// parseBody compiles a small HCL snippet and returns its body for test use.
+func parseBody(t *testing.T, src string) hcl.Body {
+	t.Helper()
+	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "parse: %s", diags.Error())
+	return file.Body
+}
 
 func TestNewCollectorFactory(t *testing.T) {
-	t.Run("correct spec type returns collector", func(t *testing.T) {
-		expectedCollector := &mockCollector{name: "test", kind: "test_kind"}
+	t.Run("decodes body and calls typed factory", func(t *testing.T) {
+		expected := &mockCollector{name: "test", kind: "test_kind"}
 
-		factory := NewCollectorFactory("test_kind", func(_ *RegistryHelper, spec testCollectorSpec) (Collector, error) {
-			assert.Equal(t, "test_value", spec.Value)
-			return expectedCollector, nil
+		factory := NewCollectorFactory("test_kind", func(_ *RegistryHelper, _ *hcl.EvalContext, spec testCollectorSpec) (Collector, error) {
+			assert.Equal(t, "hello", spec.Value)
+			return expected, nil
 		})
 
-		collector, err := factory(nil, testCollectorSpec{Value: "test_value"})
+		body := parseBody(t, `value = "hello"`)
+		collector, diags := factory(nil, body, nil)
 
-		require.NoError(t, err)
-		assert.Equal(t, expectedCollector, collector)
+		require.False(t, diags.HasErrors(), "factory: %s", diags.Error())
+		assert.Equal(t, expected, collector)
 	})
 
-	t.Run("wrong spec type returns error", func(t *testing.T) {
-		factory := NewCollectorFactory("test_kind", func(_ *RegistryHelper, spec testCollectorSpec) (Collector, error) {
-			t.Fatal("factory should not be called with wrong spec type")
+	t.Run("bad decode surfaces diagnostics", func(t *testing.T) {
+		factory := NewCollectorFactory("test_kind", func(_ *RegistryHelper, _ *hcl.EvalContext, _ testCollectorSpec) (Collector, error) {
+			t.Fatal("typed factory should not be called on decode error")
 			return nil, nil
 		})
 
-		collector, err := factory(nil, wrongSpec{})
+		body := parseBody(t, `unknown = "x"`)
+		collector, diags := factory(nil, body, nil)
 
-		require.Error(t, err)
+		require.True(t, diags.HasErrors())
 		assert.Nil(t, collector)
-		assert.ErrorContains(t, err, "test_kind")
-		assert.ErrorContains(t, err, "wrongSpec")
 	})
 }
 
 func TestNewStepFactory(t *testing.T) {
-	t.Run("correct collector and spec types returns step", func(t *testing.T) {
-		expectedStep := &mockStep{name: "test", kind: "test_kind"}
+	t.Run("decodes body and calls typed factory", func(t *testing.T) {
+		expected := &mockStep{name: "test", kind: "test_kind"}
 		inputCollector := &mockCollector{name: "collector", kind: "collector_kind"}
 
-		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, id string, c *mockCollector, spec testStepSpec) (Step, error) {
+		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, id string, c *mockCollector, _ *hcl.EvalContext, spec testStepSpec) (Step, error) {
 			assert.Equal(t, "step_id", id)
 			assert.Equal(t, inputCollector, c)
-			assert.Equal(t, "test_value", spec.Value)
-			return expectedStep, nil
+			assert.Equal(t, "hello", spec.Value)
+			return expected, nil
 		})
 
-		step, err := factory(nil, "step_id", inputCollector, testStepSpec{Value: "test_value"})
+		body := parseBody(t, `value = "hello"`)
+		step, diags := factory(nil, "step_id", inputCollector, body, nil)
 
-		require.NoError(t, err)
-		assert.Equal(t, expectedStep, step)
+		require.False(t, diags.HasErrors(), "factory: %s", diags.Error())
+		assert.Equal(t, expected, step)
 	})
 
-	t.Run("nil collector returns error", func(t *testing.T) {
-		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, _ string, _ *mockCollector, _ testStepSpec) (Step, error) {
-			t.Fatal("factory should not be called with nil collector")
+	t.Run("nil collector returns diagnostic", func(t *testing.T) {
+		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, _ string, _ *mockCollector, _ *hcl.EvalContext, _ testStepSpec) (Step, error) {
+			t.Fatal("typed factory should not be called with nil collector")
 			return nil, nil
 		})
 
-		step, err := factory(nil, "step_id", nil, testStepSpec{})
+		step, diags := factory(nil, "step_id", nil, parseBody(t, `value = "x"`), nil)
 
-		require.Error(t, err)
+		require.True(t, diags.HasErrors())
 		assert.Nil(t, step)
-		assert.ErrorContains(t, err, "test_kind")
-		assert.ErrorContains(t, err, "requires a collector")
+		assert.Contains(t, diags.Error(), "test_kind")
+		assert.Contains(t, diags.Error(), "requires a collector")
 	})
 
-	t.Run("wrong collector type returns error", func(t *testing.T) {
+	t.Run("wrong collector type returns diagnostic", func(t *testing.T) {
 		type otherCollector struct{ mockCollector }
 		wrongCollector := &otherCollector{}
 
-		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, _ string, _ *mockCollector, _ testStepSpec) (Step, error) {
-			t.Fatal("factory should not be called with wrong collector type")
+		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, _ string, _ *mockCollector, _ *hcl.EvalContext, _ testStepSpec) (Step, error) {
+			t.Fatal("typed factory should not be called with wrong collector type")
 			return nil, nil
 		})
 
-		step, err := factory(nil, "step_id", wrongCollector, testStepSpec{})
+		step, diags := factory(nil, "step_id", wrongCollector, parseBody(t, `value = "x"`), nil)
 
-		require.Error(t, err)
+		require.True(t, diags.HasErrors())
 		assert.Nil(t, step)
-		assert.ErrorContains(t, err, "test_kind")
-		assert.ErrorContains(t, err, "step_id")
-		assert.ErrorContains(t, err, "otherCollector")
-	})
-
-	t.Run("wrong spec type returns error", func(t *testing.T) {
-		inputCollector := &mockCollector{name: "collector", kind: "collector_kind"}
-
-		factory := NewStepFactory("test_kind", func(_ *RegistryHelper, _ string, _ *mockCollector, _ testStepSpec) (Step, error) {
-			t.Fatal("factory should not be called with wrong spec type")
-			return nil, nil
-		})
-
-		step, err := factory(nil, "step_id", inputCollector, wrongSpec{})
-
-		require.Error(t, err)
-		assert.Nil(t, step)
-		assert.ErrorContains(t, err, "test_kind")
-		assert.ErrorContains(t, err, "step_id")
-		assert.ErrorContains(t, err, "wrongSpec")
+		assert.Contains(t, diags.Error(), "test_kind")
+		assert.Contains(t, diags.Error(), "step_id")
 	})
 }
 
-func TestNewStepFactoryWithoutCollector(t *testing.T) {
-	t.Run("correct spec type returns step", func(t *testing.T) {
-		expectedStep := &mockStep{name: "test", kind: "test_kind"}
-
-		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, id string, spec testStepSpec) (Step, error) {
-			assert.Equal(t, "step_id", id)
-			assert.Equal(t, "test_value", spec.Value)
-			return expectedStep, nil
-		})
-
-		step, err := factory(nil, "step_id", nil, testStepSpec{Value: "test_value"})
-
-		require.NoError(t, err)
-		assert.Equal(t, expectedStep, step)
+func TestRegistry_RegisterStep(t *testing.T) {
+	noop := StepFactory(func(*RegistryHelper, string, Collector, hcl.Body, *hcl.EvalContext) (Step, hcl.Diagnostics) {
+		return nil, nil
 	})
 
-	t.Run("wrong spec type returns error", func(t *testing.T) {
-		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, _ string, _ testStepSpec) (Step, error) {
-			t.Fatal("factory should not be called with wrong spec type")
-			return nil, nil
-		})
-
-		step, err := factory(nil, "step_id", nil, wrongSpec{})
-
+	t.Run("rejects missing Kind", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterStep(StepDescriptor{Factory: noop})
 		require.Error(t, err)
-		assert.Nil(t, step)
-		assert.ErrorContains(t, err, "test_kind")
-		assert.ErrorContains(t, err, "step_id")
-		assert.ErrorContains(t, err, "wrongSpec")
+		assert.ErrorContains(t, err, "missing Kind")
 	})
 
-	t.Run("nil collector is ignored", func(t *testing.T) {
-		expectedStep := &mockStep{name: "test", kind: "test_kind"}
+	t.Run("rejects missing Factory", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterStep(StepDescriptor{Kind: "x"})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "missing Factory")
+	})
 
-		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, _ string, _ testStepSpec) (Step, error) {
-			return expectedStep, nil
+	t.Run("rejects RequiresCollector with no AllowedCollectorKinds", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterStep(StepDescriptor{
+			Kind:              "x",
+			Factory:           noop,
+			RequiresCollector: true,
+		})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "RequiresCollector")
+		assert.ErrorContains(t, err, "AllowedCollectorKinds")
+	})
+
+	t.Run("rejects collector-less descriptor with AllowedCollectorKinds", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterStep(StepDescriptor{
+			Kind:                  "x",
+			Factory:               noop,
+			RequiresCollector:     false,
+			AllowedCollectorKinds: []string{"c"},
+		})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "collector-less")
+		assert.ErrorContains(t, err, "AllowedCollectorKinds")
+	})
+
+	t.Run("rejects duplicate kind", func(t *testing.T) {
+		r := NewRegistry(nil)
+		desc := StepDescriptor{Kind: "x", Factory: noop}
+		require.NoError(t, r.RegisterStep(desc))
+		err := r.RegisterStep(desc)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "already registered")
+	})
+
+	t.Run("stores valid descriptor", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterStep(StepDescriptor{
+			Kind:                  "x",
+			Factory:               noop,
+			RequiresCollector:     true,
+			AllowedCollectorKinds: []string{"c"},
+		})
+		require.NoError(t, err)
+		desc, ok := r.StepDescriptor("x")
+		require.True(t, ok)
+		assert.Equal(t, "x", desc.Kind)
+		assert.True(t, desc.RequiresCollector)
+		assert.Equal(t, []string{"c"}, desc.AllowedCollectorKinds)
+	})
+}
+
+func TestRegistry_RegisterCollector(t *testing.T) {
+	noop := CollectorFactory(func(*RegistryHelper, hcl.Body, *hcl.EvalContext) (Collector, hcl.Diagnostics) {
+		return nil, nil
+	})
+
+	t.Run("rejects empty kind", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterCollector("", noop)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "kind is empty")
+	})
+
+	t.Run("rejects nil factory", func(t *testing.T) {
+		r := NewRegistry(nil)
+		err := r.RegisterCollector("x", nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "missing factory")
+	})
+
+	t.Run("rejects duplicate kind", func(t *testing.T) {
+		r := NewRegistry(nil)
+		require.NoError(t, r.RegisterCollector("x", noop))
+		err := r.RegisterCollector("x", noop)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "already registered")
+	})
+}
+
+func TestNewTypedStepDescriptor(t *testing.T) {
+	// The typed helper must produce a descriptor whose AllowedCollectorKinds
+	// and runtime type assertion cannot drift: the collector kind passed to
+	// the helper must be the single entry, and RequiresCollector must be on.
+	desc := NewTypedStepDescriptor("fetch", "my_collector", func(_ *RegistryHelper, _ string, _ *mockCollector, _ *hcl.EvalContext, _ testStepSpec) (Step, error) {
+		return &mockStep{name: "fetch", kind: "fetch"}, nil
+	})
+	assert.Equal(t, "fetch", desc.Kind)
+	assert.True(t, desc.RequiresCollector)
+	assert.Equal(t, []string{"my_collector"}, desc.AllowedCollectorKinds)
+	require.NotNil(t, desc.Factory)
+}
+
+func TestNewTypedStepDescriptorWithoutCollector(t *testing.T) {
+	desc := NewTypedStepDescriptorWithoutCollector("fetch", func(_ *RegistryHelper, _ string, _ *hcl.EvalContext, _ testStepSpec) (Step, error) {
+		return &mockStep{name: "fetch", kind: "fetch"}, nil
+	})
+	assert.Equal(t, "fetch", desc.Kind)
+	assert.False(t, desc.RequiresCollector)
+	assert.Empty(t, desc.AllowedCollectorKinds)
+	require.NotNil(t, desc.Factory)
+}
+
+func TestNewStepFactoryWithoutCollector(t *testing.T) {
+	t.Run("decodes body and calls typed factory", func(t *testing.T) {
+		expected := &mockStep{name: "test", kind: "test_kind"}
+
+		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, id string, _ *hcl.EvalContext, spec testStepSpec) (Step, error) {
+			assert.Equal(t, "step_id", id)
+			assert.Equal(t, "hello", spec.Value)
+			return expected, nil
 		})
 
-		step, err := factory(nil, "step_id", nil, testStepSpec{})
+		step, diags := factory(nil, "step_id", nil, parseBody(t, `value = "hello"`), nil)
 
-		require.NoError(t, err)
-		assert.Equal(t, expectedStep, step)
+		require.False(t, diags.HasErrors(), "factory: %s", diags.Error())
+		assert.Equal(t, expected, step)
 	})
 
-	t.Run("any collector is ignored", func(t *testing.T) {
-		expectedStep := &mockStep{name: "test", kind: "test_kind"}
+	t.Run("ignores the supplied collector", func(t *testing.T) {
+		expected := &mockStep{name: "test", kind: "test_kind"}
 		someCollector := &mockCollector{name: "ignored", kind: "ignored"}
 
-		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, _ string, _ testStepSpec) (Step, error) {
-			return expectedStep, nil
+		factory := NewStepFactoryWithoutCollector("test_kind", func(_ *RegistryHelper, _ string, _ *hcl.EvalContext, _ testStepSpec) (Step, error) {
+			return expected, nil
 		})
 
-		step, err := factory(nil, "step_id", someCollector, testStepSpec{})
+		step, diags := factory(nil, "step_id", someCollector, parseBody(t, `value = "x"`), nil)
 
-		require.NoError(t, err)
-		assert.Equal(t, expectedStep, step)
+		require.False(t, diags.HasErrors())
+		assert.Equal(t, expected, step)
 	})
 }

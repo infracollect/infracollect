@@ -171,34 +171,36 @@ func TestSubprocessExecutor_InitProvider_InvalidProvider(t *testing.T) {
 ### Example Test
 
 ```go
-func TestParseCollectJob(t *testing.T) {
+func TestParseJobTemplate(t *testing.T) {
     tests := []struct {
         name    string
         input   string
-        wantErr bool
+        wantErr string // substring; empty means no error
     }{
         {
             name: "valid job",
-            input: `apiVersion: v1
-kind: CollectJob
-metadata:
-  name: test
-spec:
-  collectors: []
-  steps: []`,
-            wantErr: false,
+            input: `
+job {
+  name = "test"
+}
+
+step "static" "greeting" {
+  value = "hello"
+}`,
+            wantErr: "",
         },
         // ... more test cases
     }
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := runner.ParseCollectJob([]byte(tt.input))
-            if (err != nil) != tt.wantErr {
-                t.Errorf("ParseCollectJob() error = %v, wantErr %v", err, tt.wantErr)
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            _, diags := runner.ParseJobTemplate([]byte(tc.input), "test.hcl")
+            if tc.wantErr == "" {
+                require.False(t, diags.HasErrors(), "diags: %s", diags.Error())
                 return
             }
-            // ... assertions
+            require.True(t, diags.HasErrors())
+            assert.Contains(t, diags.Error(), tc.wantErr)
         })
     }
 }
@@ -217,7 +219,8 @@ Always use `t.Context()` as the context for tests.
 
 ```go
 // Package runner provides job parsing and pipeline orchestration.
-// It parses CollectJob YAML files and creates executable pipelines.
+// It parses HCL job templates, builds a resolvable DAG, and executes
+// collectors and steps in topological order.
 package runner
 ```
 
@@ -229,10 +232,11 @@ package runner
 - Include examples for complex functions
 
 ```go
-// ParseCollectJob parses a YAML or JSON job file and validates it against the JSON Schema
-// generated from the v1.CollectJob struct. It returns a validated CollectJob struct or an error
-// if parsing or validation fails.
-func ParseCollectJob(data []byte) (v1.CollectJob, error) {
+// ParseJobTemplate parses HCL bytes into a JobTemplate. The filename is used
+// only for diagnostic source ranges. Structural errors (unknown attributes,
+// wrong labels, duplicate IDs) are returned as hcl.Diagnostics with source
+// ranges pointing at the offending token.
+func ParseJobTemplate(data []byte, filename string) (*JobTemplate, hcl.Diagnostics) {
     // ...
 }
 ```
@@ -308,29 +312,29 @@ func NewCollector(client *tfclient.Client, cfg Config) (engine.Collector, error)
 
 ### Pipeline Pattern
 
+Pipeline owns the DAG and the per-node metadata (decoded `hcl.Body`, extracted
+references, `for_each` expression). Execution lives in `runner.Run`, which
+walks the DAG in topological order and does the second-pass gohcl decode
+against a per-node `hcl.EvalContext`.
+
 ```go
-// Pipeline manages collectors and steps
+// Pipeline holds the resolvable DAG for a job template.
 type Pipeline struct {
-    name       string
-    collectors map[string]Collector
-    steps      map[string]Step
+    dag  *DirectedAcyclicGraph
+    meta map[string]*NodeMeta // keyed by Node.Key()
 }
 
-func (p *Pipeline) GetCollector(id string) (Collector, bool) {
-    collector, ok := p.collectors[id]
-    return collector, ok
+func (p *Pipeline) Dag() *DirectedAcyclicGraph { return p.dag }
+
+func (p *Pipeline) Meta(n Node) (*NodeMeta, bool) {
+    m, ok := p.meta[n.Key()]
+    return m, ok
 }
 
-func (p *Pipeline) Run(ctx context.Context) (map[string]Result, error) {
-    results := make(map[string]Result)
-    for id, step := range p.steps {
-        result, err := step.Resolve(ctx)
-        if err != nil {
-            return nil, fmt.Errorf("failed to resolve step '%s': %w", id, err)
-        }
-        results[id] = result
-    }
-    return results, nil
+// BuildPipeline decodes labels, extracts references via expr.Variables(),
+// and wires DAG edges. No integration factory is called here.
+func BuildPipeline(logger *zap.Logger, tmpl *JobTemplate, registry *engine.Registry) (*Pipeline, hcl.Diagnostics) {
+    // ... walk tmpl.Collectors + tmpl.Steps, call ReferencesInBody, AddEdgeUnchecked ...
 }
 ```
 
@@ -426,25 +430,44 @@ func (c *Collector) Close() error {
 
 ## When Adding New Features
 
-1. **Define interfaces first** in `pkg/engine/`
+1. **Define interfaces first** in `internal/engine/`
 2. **Implement in appropriate package** (`internal/integrations/` for collectors, etc.)
 3. **Add tests** alongside implementation
-4. **Update documentation** (docs/ and code comments)
-5. **Add examples** if the feature is user-facing (e.g., job.yaml)
+4. **Update documentation** (website/src/content/docs/ and code comments)
+5. **Add examples** if the feature is user-facing (an HCL job snippet in docs)
 6. **Update CLAUDE.md** if patterns change
 
 ## Adding New Step Types or Collectors
 
-When adding a new step type (like `exec`, `static`) or collector (like `terraform`, `http`):
+Each integration owns its own HCL config struct with `hcl:"..."` tags. There
+is no central `apis/v1` schema — config types live next to the factory that
+consumes them.
 
-1. **Define the struct** in `apis/v1/job.go` with appropriate YAML/JSON tags, validation, and template tags
-2. **Update `ResolveStepSpec`** (or `ResolveCollectorSpec`) in `internal/runner/spec.go`
-3. **Implement the step/collector** in `internal/engine/steps/` or `internal/integrations/`
-4. **Register** in `internal/engine/steps/register.go` or the appropriate registry
-5. **Add to gen-docs.go**: Add the struct name to `targetStructs` map in `scripts/gen-docs.go`
-6. **Regenerate schema docs**: Run `go run scripts/gen-docs.go` to generate JSON schema files
-7. **Create reference documentation** in `website/src/content/docs/reference/steps/` or `reference/collectors/`
-8. **Add tests** for the new functionality
+When adding a new step type (like `exec`, `static`) or collector (like
+`terraform`, `http`):
+
+1. **Define the config struct** in the integration package (e.g.
+   `internal/integrations/<name>/<name>.go` or
+   `internal/engine/steps/<name>.go`) with `hcl:"..."` tags. Use nested
+   labeled blocks for discriminated unions (e.g. `auth "basic" { ... }`).
+2. **Implement the `engine.Collector` or `engine.Step` interface** in the
+   same package.
+3. **Register a factory** in `internal/engine/steps/register.go` (for steps)
+   or the integration-specific register site (for collectors). The factory
+   receives an `hcl.Body` plus the per-node `hcl.EvalContext` and calls
+   `gohcl.DecodeBody` to populate the config struct — the runner's topo walk
+   has already stamped predecessors into the context by that point.
+4. **Surface the new kind to the registry** so `BuildPipeline`'s known-kinds
+   gate accepts it — `registry.RegisterCollector` / `registry.RegisterStep`.
+5. **Add tests**: factory decode happy/error paths, plus a runner-level test
+   via the stub registry pattern in `internal/runner/run_test.go` if the step
+   has cross-step reference or `for_each` behaviour worth exercising.
+6. **Update reference docs** in `website/src/content/docs/reference/steps/`
+   or `reference/collectors/` with the HCL block shape.
+
+Note: `scripts/gen-docs.go` currently walks the removed `apis/v1` tree and is
+parked as broken pending a rewrite that reads integration-local gohcl tags.
+Do not rely on it to produce schema docs.
 
 ## Questions?
 

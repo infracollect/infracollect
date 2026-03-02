@@ -105,7 +105,7 @@ Create documentation for contributors on how to add a new collector/step:
 The pipeline is currently built using a series of functions that build the different components of the pipeline. This is
 not ideal because it makes it difficult to understand the pipeline and to modify it.
 
-### [ ] Advanced DAG engine
+### [~] Advanced DAG engine
 
 Steps are sequential and cannot be executed in parallel.
 Nested steps would be useful to transform the data from one step to the next.

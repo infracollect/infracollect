@@ -1,228 +1,342 @@
 package runner
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"time"
+	"slices"
+	"strings"
 
-	v1 "github.com/infracollect/infracollect/apis/v1"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/infracollect/infracollect/internal/engine"
-	"github.com/infracollect/infracollect/internal/engine/archivers"
-	"github.com/infracollect/infracollect/internal/engine/encoders"
-	"github.com/infracollect/infracollect/internal/engine/sinks"
 	"go.uber.org/zap"
 )
 
-func createPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Registry, job v1.CollectJob) (*engine.Pipeline, error) {
-	logger.Info("creating pipeline", zap.String("job_name", job.Metadata.Name))
-	spec := job.Spec
-	pipeline := engine.NewPipeline(job.Metadata.Name)
-
-	for _, collectorSpec := range spec.Collectors {
-		resolvedSpec, err := ResolveCollectorSpec(collectorSpec)
-		if err != nil {
-			return nil, err
-		}
-
-		collector, err := registry.CreateCollector(resolvedSpec.Kind, resolvedSpec.Spec)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := pipeline.AddCollector(collectorSpec.ID, collector); err != nil {
-			return nil, fmt.Errorf("failed to add collector: %w", err)
-		}
-
-		logger.Debug("created collector", zap.String("collector_id", collectorSpec.ID), zap.String("collector_kind", collector.Kind()), zap.String("collector_name", collector.Name()))
-	}
-
-	for _, stepSpec := range spec.Steps {
-		resolvedSpec, err := ResolveStepSpec(stepSpec)
-		if err != nil {
-			return nil, err
-		}
-
-		var collector engine.Collector
-		if stepSpec.Collector != nil {
-			foundCollector, ok := pipeline.GetCollector(*stepSpec.Collector)
-			if !ok {
-				return nil, fmt.Errorf("collector %q not found for step %q", *stepSpec.Collector, stepSpec.ID)
-			}
-			collector = foundCollector
-		}
-
-		step, err := registry.CreateStep(resolvedSpec.Kind, stepSpec.ID, collector, resolvedSpec.Spec)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := pipeline.AddStep(stepSpec.ID, step); err != nil {
-			return nil, fmt.Errorf("failed to add step: %w", err)
-		}
-
-		logger.Debug("created step", zap.String("step_id", stepSpec.ID), zap.String("step_kind", step.Kind()), zap.String("step_name", step.Name()))
-	}
-
-	return pipeline, nil
+// CollectorAddr is the parsed `collector.<type>.<id>` binding of a step.
+type CollectorAddr struct {
+	Type string
+	Name string
 }
 
-// buildEncoder creates an encoder from the output spec.
-// Defaults to compact JSON if no encoding is specified.
-func buildEncoder(output *v1.OutputSpec) (engine.Encoder, error) {
-	if output == nil || output.Encoding == nil {
-		return encoders.NewJSONEncoder(""), nil
-	}
-
-	if output.Encoding.JSON != nil {
-		return encoders.NewJSONEncoder(output.Encoding.JSON.Indent), nil
-	}
-
-	return nil, fmt.Errorf("unknown encoding type")
+// Pipeline is the resolvable shape of a collect job: a DAG of collector and
+// step nodes with per-node metadata attached for execution.
+type Pipeline struct {
+	dag  *DirectedAcyclicGraph
+	meta map[Node]*NodeMeta
 }
 
-// buildSink creates a sink from the job spec.
-//
-// Default behavior:
-//   - No output spec: stdout sink
-//   - No sink specified: stdout sink
-//   - Explicit stdout sink: stdout sink
-//   - Explicit filesystem sink: filesystem sink
-//
-// If archive is configured, the inner sink is wrapped with an ArchiveSink.
-func buildSink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
-	sink, err := buildInnerSink(ctx, job)
-	if err != nil {
-		return nil, err
-	}
-
-	if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
-		return wrapWithArchiveSink(job, sink)
-	}
-
-	return sink, nil
+// NodeMeta is pipeline-local so the DAG core stays comparable.
+type NodeMeta struct {
+	Body          hcl.Body
+	Refs          []Reference
+	ForEach       hcl.Expression // nil unless this is a Collection node
+	CollectorAddr *CollectorAddr // step-only; parsed collector binding
+	DefRange      hcl.Range
 }
 
-// buildInnerSink creates the underlying sink (stdout, filesystem, or S3).
-func buildInnerSink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
-	if job.Spec.Output == nil || job.Spec.Output.Sink == nil || job.Spec.Output.Sink.Stdout != nil {
-		if job.Spec.Output != nil && job.Spec.Output.Archive != nil {
-			return nil, fmt.Errorf("stdout sink cannot be used with archive configuration")
-		}
-		return sinks.NewStreamSink(os.Stdout), nil
-	}
+func (p *Pipeline) Dag() *DirectedAcyclicGraph { return p.dag }
 
-	if job.Spec.Output.Sink.Filesystem != nil {
-		return buildFilesystemSink(job)
-	}
-
-	if job.Spec.Output.Sink.S3 != nil {
-		return buildS3Sink(ctx, job)
-	}
-
-	return nil, fmt.Errorf("invalid sink configuration: no sink type specified")
+func (p *Pipeline) Meta(n Node) (*NodeMeta, bool) {
+	m, ok := p.meta[n]
+	return m, ok
 }
 
-func wrapWithArchiveSink(job v1.CollectJob, inner engine.Sink) (engine.Sink, error) {
-	archive := job.Spec.Output.Archive
+// BuildPipeline extracts references via HCL's native Variables() walk and
+// builds a DAG with one node per collector and one per step. Steps that
+// declared a for_each become NodeTypeCollection. Structural errors
+// (unknown kind, dangling reference, cycle, each.* outside a collection)
+// surface as hcl.Diagnostics with source ranges intact.
+func BuildPipeline(logger *zap.Logger, tmpl *JobTemplate, registry *engine.Registry) (*Pipeline, hcl.Diagnostics) {
+	logger.Info("building pipeline", zap.String("job_name", tmpl.JobName()))
 
-	compression := archive.Compression
-	if compression == "" {
-		compression = "gzip"
+	p := &Pipeline{
+		dag:  NewDirectedAcyclicGraph(),
+		meta: make(map[Node]*NodeMeta),
 	}
+	var diags hcl.Diagnostics
 
-	archiver, err := archivers.NewTarArchiver(compression)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tar archiver: %w", err)
-	}
+	knownCollectors := registry.AvailableCollectors()
 
-	name := archive.Name
-	if name == "" {
-		name = job.Metadata.Name
-	}
+	// Ordered list of nodes in source order, used in the second pass so
+	// diagnostics surface deterministically rather than in Go map order.
+	var nodes []Node
 
-	return sinks.NewArchiveSink(inner, archiver, name), nil
-}
-
-func buildFilesystemSink(job v1.CollectJob) (engine.Sink, error) {
-	var path string
-	var prefix string
-
-	if job.Spec.Output != nil && job.Spec.Output.Sink != nil && job.Spec.Output.Sink.Filesystem != nil {
-		fs := job.Spec.Output.Sink.Filesystem
-		if fs.Path != nil {
-			path = *fs.Path
-		}
-		if fs.Prefix != nil {
-			prefix = *fs.Prefix
-		}
-	}
-
-	if path == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get working directory: %w", err)
-		}
-		path = wd
-	}
-
-	return sinks.NewFilesystemSinkFromPath(filepath.Join(path, prefix))
-}
-
-func buildS3Sink(ctx context.Context, job v1.CollectJob) (engine.Sink, error) {
-	s3Spec := job.Spec.Output.Sink.S3
-
-	cfg := sinks.S3Config{
-		Bucket:         s3Spec.Bucket,
-		ForcePathStyle: s3Spec.ForcePathStyle,
-	}
-
-	if s3Spec.Region != nil {
-		cfg.Region = *s3Spec.Region
-	}
-
-	if s3Spec.Endpoint != nil {
-		cfg.Endpoint = *s3Spec.Endpoint
-	}
-
-	if s3Spec.Prefix != nil {
-		cfg.Prefix = *s3Spec.Prefix
-	}
-
-	if s3Spec.Credentials != nil {
-		cfg.AccessKeyID = s3Spec.Credentials.AccessKeyID
-		cfg.SecretAccessKey = s3Spec.Credentials.SecretAccessKey
-	}
-
-	return sinks.NewS3Sink(ctx, cfg)
-}
-
-// buildVariables creates the variables map for expansion.
-// It includes built-in variables and reads allowed environment variables.
-// If a variable is not set, an error is returned.
-func BuildVariables(job v1.CollectJob, allowedEnv []string) (map[string]string, error) {
-	date := time.Now().UTC()
-	variables := map[string]string{
-		"JOB_NAME":         job.Metadata.Name,
-		"JOB_DATE_ISO8601": date.Format(engine.ISO8601Basic),
-		"JOB_DATE_RFC3339": date.Format(time.RFC3339),
-	}
-
-	var errs error
-	for _, envName := range allowedEnv {
-		val, ok := os.LookupEnv(envName)
-		if !ok {
-			errs = errors.Join(errs, fmt.Errorf("environment variable %q is not set", envName))
+	// First pass: add all nodes so subsequent edge resolution can tell the
+	// difference between "referenced node exists" and "dangling reference".
+	for _, c := range tmpl.Collectors {
+		if !slices.Contains(knownCollectors, c.Type) {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Unknown collector type",
+				Detail:   fmt.Sprintf("Collector type %q is not registered. Expected one of: %s.", c.Type, strings.Join(knownCollectors, ", ")),
+				Subject:  c.DefRange.Ptr(),
+			})
 			continue
 		}
-		variables[envName] = val
+		node := Node{Kind: NodeTypeCollector, Type: c.Type, ID: c.Name}
+		if err := p.dag.AddNode(node); err != nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate collector node",
+				Detail:   err.Error(),
+				Subject:  c.DefRange.Ptr(),
+			})
+			continue
+		}
+
+		refs, rd := ReferencesInBody(c.Body)
+		diags = append(diags, rd...)
+
+		p.meta[node] = &NodeMeta{
+			Body:     c.Body,
+			Refs:     refs,
+			DefRange: c.DefRange,
+		}
+		nodes = append(nodes, node)
 	}
 
-	if errs != nil {
-		return nil, errs
+	for _, s := range tmpl.Steps {
+		desc, known := registry.StepDescriptor(s.Type)
+		if !known {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Unknown step type",
+				Detail: fmt.Sprintf(
+					"Step type %q is not registered. Expected one of: %s.",
+					s.Type, strings.Join(registry.AvailableSteps(), ", "),
+				),
+				Subject: s.DefRange.Ptr(),
+			})
+			continue
+		}
+		kind := NodeTypeStep
+		if s.ForEach != nil {
+			kind = NodeTypeCollection
+		}
+		node := Node{Kind: kind, Type: s.Type, ID: s.Name}
+		if err := p.dag.AddNode(node); err != nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate step node",
+				Detail:   err.Error(),
+				Subject:  s.DefRange.Ptr(),
+			})
+			continue
+		}
+
+		refs, rd := ReferencesInBody(s.Body)
+		diags = append(diags, rd...)
+
+		if s.ForEach != nil {
+			forEachRefs, fd := ReferencesInExpression(s.ForEach)
+			diags = append(diags, fd...)
+			refs = append(refs, forEachRefs...)
+		}
+
+		var collectorAddr *CollectorAddr
+		switch {
+		case s.Collector == nil && desc.RequiresCollector:
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Step %q requires a collector", s.Type),
+				Detail: fmt.Sprintf(
+					"Step %q must declare `collector = collector.<kind>.<id>`. Accepted collector kinds: %s.",
+					s.Name, strings.Join(desc.AllowedCollectorKinds, ", "),
+				),
+				Subject: s.DefRange.Ptr(),
+			})
+		case s.Collector != nil && len(desc.AllowedCollectorKinds) == 0:
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Step %q must not declare a collector", s.Type),
+				Detail: fmt.Sprintf(
+					"Step %q is collector-less; remove the `collector` attribute.",
+					s.Name,
+				),
+				Subject: s.Collector.Range().Ptr(),
+			})
+		case s.Collector != nil:
+			addr, trav, cd := parseCollectorBinding(s.Collector)
+			diags = append(diags, cd...)
+			if !cd.HasErrors() {
+				if !slices.Contains(desc.AllowedCollectorKinds, addr.Type) {
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  fmt.Sprintf("Incompatible collector for step %q", s.Type),
+						Detail: fmt.Sprintf(
+							"Step %q accepts collector kinds %v, but is bound to kind %q.",
+							s.Name, desc.AllowedCollectorKinds, addr.Type,
+						),
+						Subject: s.Collector.Range().Ptr(),
+					})
+				} else {
+					collectorAddr = &addr
+					refs = append(refs, Reference{
+						Root:      RootCollector,
+						Type:      addr.Type,
+						Name:      addr.Name,
+						Traversal: trav,
+					})
+				}
+			}
+		}
+
+		p.meta[node] = &NodeMeta{
+			Body:          s.Body,
+			Refs:          refs,
+			ForEach:       s.ForEach,
+			CollectorAddr: collectorAddr,
+			DefRange:      s.DefRange,
+		}
+		nodes = append(nodes, node)
 	}
 
-	return variables, nil
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	// Second pass: resolve references to DAG edges. Walking `nodes` (source
+	// order) instead of the meta map keeps diagnostics deterministic.
+	for _, to := range nodes {
+		meta := p.meta[to]
+		for _, ref := range meta.Refs {
+			ed := p.addEdgeForRef(to, ref)
+			diags = append(diags, ed...)
+		}
+	}
+
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	if _, err := p.dag.TopologicalSort(); err != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Cycle in collect job DAG",
+			Detail:   err.Error(),
+		})
+		return nil, diags
+	}
+
+	return p, diags
+}
+
+func (p *Pipeline) addEdgeForRef(to Node, ref Reference) hcl.Diagnostics {
+	switch ref.Root {
+	case RootEnv, RootJob:
+		return nil
+
+	case RootEach:
+		if to.Kind != NodeTypeCollection {
+			return hcl.Diagnostics{&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "each.* used outside a for_each step",
+				Detail: fmt.Sprintf(
+					"%s %q references each.* but is not declared with for_each.",
+					to.Kind.String(), to.ID,
+				),
+				Subject: ref.Traversal.SourceRange().Ptr(),
+			}}
+		}
+		return nil
+
+	case RootCollector, RootStep:
+		from, ok := p.resolveRefNode(ref)
+		if !ok {
+			return hcl.Diagnostics{&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Reference to unknown %s", ref.Root),
+				Detail: fmt.Sprintf(
+					"%s.%s.%s is not declared in this job.",
+					ref.Root, ref.Type, ref.Name,
+				),
+				Subject: ref.Traversal.SourceRange().Ptr(),
+			}}
+		}
+		if err := p.dag.AddEdgeUnchecked(from, to); err != nil {
+			return hcl.Diagnostics{&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Cannot add edge to DAG",
+				Detail:   err.Error(),
+				Subject:  ref.Traversal.SourceRange().Ptr(),
+			}}
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// resolveRefNode finds the node a collector/step reference points at. Step
+// references can resolve to either NodeTypeStep or NodeTypeCollection.
+func (p *Pipeline) resolveRefNode(ref Reference) (Node, bool) {
+	switch ref.Root {
+	case RootCollector:
+		n := Node{Kind: NodeTypeCollector, Type: ref.Type, ID: ref.Name}
+		if _, ok := p.meta[n]; ok {
+			return n, true
+		}
+	case RootStep:
+		for _, kind := range []NodeType{NodeTypeStep, NodeTypeCollection} {
+			n := Node{Kind: kind, Type: ref.Type, ID: ref.Name}
+			if _, ok := p.meta[n]; ok {
+				return n, true
+			}
+		}
+	}
+	return Node{}, false
+}
+
+// parseCollectorBinding validates a step's `collector = ...` expression. Only
+// the exact traversal shape `collector.<type>.<id>` is accepted; conditionals,
+// function calls, interpolations, arithmetic, and concatenation are all
+// rejected with a source-ranged diagnostic.
+func parseCollectorBinding(expr hcl.Expression) (CollectorAddr, hcl.Traversal, hcl.Diagnostics) {
+	invalid := func(detail string) hcl.Diagnostics {
+		return hcl.Diagnostics{&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid collector binding",
+			Detail:   detail,
+			Subject:  expr.Range().Ptr(),
+		}}
+	}
+
+	trav, ok := expr.(*hclsyntax.ScopeTraversalExpr)
+	if !ok {
+		return CollectorAddr{}, nil, invalid(
+			"The `collector` attribute must be a direct traversal of the form " +
+				"`collector.<type>.<id>`. Conditionals, function calls, string " +
+				"interpolations, arithmetic, and concatenation are not permitted.",
+		)
+	}
+
+	t := trav.Traversal
+	if len(t) != 3 {
+		return CollectorAddr{}, nil, invalid(fmt.Sprintf(
+			"The `collector` attribute must be exactly `collector.<type>.<id>`; "+
+				"got a traversal of %d segments.",
+			len(t),
+		))
+	}
+
+	root, ok := t[0].(hcl.TraverseRoot)
+	if !ok || root.Name != RootCollector {
+		return CollectorAddr{}, nil, invalid(
+			"The `collector` attribute must start with the `collector` namespace.",
+		)
+	}
+	typeAttr, ok := t[1].(hcl.TraverseAttr)
+	if !ok {
+		return CollectorAddr{}, nil, invalid(
+			"Expected an attribute (collector type) after `collector.`.",
+		)
+	}
+	nameAttr, ok := t[2].(hcl.TraverseAttr)
+	if !ok {
+		return CollectorAddr{}, nil, invalid(fmt.Sprintf(
+			"Expected an attribute (collector name) after `collector.%s.`.",
+			typeAttr.Name,
+		))
+	}
+
+	return CollectorAddr{Type: typeAttr.Name, Name: nameAttr.Name}, t, nil
 }

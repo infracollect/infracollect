@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
+	"os"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/infracollect/infracollect/internal/runner"
 	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
@@ -35,48 +33,31 @@ var validateCommand = &cli.Command{
 			return fmt.Errorf("no job file provided")
 		}
 
+		logger = logger.With(zap.String("job_filename", jobFilename))
+		logger.Debug("validating job file")
+
 		jobFile, _, err := readJobFile(ctx, jobFilename)
 		if err != nil {
 			return fmt.Errorf("failed to read job file '%s': %w", jobFilename, err)
 		}
 
-		logger = logger.With(zap.String("job_filename", jobFilename))
-		logger.Debug("validating job file")
-
-		job, err := runner.ParseCollectJob(jobFile)
-		if err != nil {
-			fmt.Println(formatValidationError(err))
+		tmpl, diags := runner.ParseJobTemplate(jobFile, jobFilename)
+		if diags.HasErrors() {
+			writeDiags(diags)
 			return fmt.Errorf("job file '%s' is invalid", jobFilename)
 		}
 
 		allowedEnv := command.StringSlice("pass-env")
-
-		variables, err := runner.BuildVariables(job, allowedEnv)
+		registry, err := buildRegistry(logger.Named("registry"), allowedEnv)
 		if err != nil {
-			return fmt.Errorf("failed to build variables: %w", err)
+			return fmt.Errorf("failed to build registry: %w", err)
+		}
+		if _, diags := runner.New(logger.Named("runner"), tmpl, registry, allowedEnv); diags.HasErrors() {
+			writeDiags(diags)
+			return fmt.Errorf("job file '%s' is invalid", jobFilename)
 		}
 
-		if err := runner.ExpandTemplates(&job, variables); err != nil {
-			return fmt.Errorf("failed to expand templates: %w", err)
-		}
-
-		fmt.Printf("✓ Job file '%s' is valid\n", jobFilename)
+		fmt.Fprintf(os.Stdout, "OK %s (job: %s)\n", jobFilename, tmpl.JobName())
 		return nil
 	},
-}
-
-func formatValidationError(err error) error {
-	var validationErrs validator.ValidationErrors
-	if errors.As(err, &validationErrs) {
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("job file has %d validation error(s):", len(validationErrs)))
-		for _, fe := range validationErrs {
-			sb.WriteString(fmt.Sprintf("\n  • %s: failed '%s' validation", fe.Namespace(), fe.Tag()))
-			if fe.Param() != "" {
-				sb.WriteString(fmt.Sprintf(" (param: %s)", fe.Param()))
-			}
-		}
-		return errors.New(sb.String())
-	}
-	return err
 }
