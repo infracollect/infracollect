@@ -51,7 +51,7 @@ func BuildPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Reg
 
 		pipeline.collectors[collectorSpec.ID] = collector
 
-		if err := pipeline.dag.AddNode(NodeTypeCollector, collectorSpec.ID); err != nil {
+		if err := pipeline.dag.AddNode(Node{Kind: NodeTypeCollector, ID: collectorSpec.ID}); err != nil {
 			return nil, fmt.Errorf("failed to add collector %s to graph: %w", collectorSpec.ID, err)
 		}
 
@@ -83,7 +83,7 @@ func BuildPipeline(ctx context.Context, logger *zap.Logger, registry *engine.Reg
 		}
 
 		pipeline.steps[stepSpec.ID] = step
-		if err := pipeline.dag.AddNode(NodeTypeStep, stepSpec.ID); err != nil {
+		if err := pipeline.dag.AddNode(Node{Kind: NodeTypeStep, ID: stepSpec.ID}); err != nil {
 			return nil, fmt.Errorf("failed to add step %s to graph: %w", stepSpec.ID, err)
 		}
 
