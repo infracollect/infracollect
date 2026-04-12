@@ -40,10 +40,10 @@ This document tracks work needed to get the project into production-ready shape.
 
 ### Documentation Content
 
-- [ ] **Getting started guide**: Installation, basic usage, first job
-- [ ] **Configuration reference**: Document all job spec options
-- [ ] **Collector documentation**: Document each collector type and its options
-- [ ] **Step documentation**: Document available steps and their configuration
+- [x] **Getting started guide**: Installation, basic usage, first job
+- [x] **Configuration reference**: Document all job spec options
+- [x] **Collector documentation**: Document each collector type and its options
+- [x] **Step documentation**: Document available steps and their configuration
 - [ ] **Examples**: Collection of example job files for common use cases
 - [ ] **Architecture overview**: How the pipeline system works
 
@@ -51,7 +51,7 @@ This document tracks work needed to get the project into production-ready shape.
 
 - [ ] **Go package docs**: Ensure all exported types/functions are documented
 - [ ] **pkg.go.dev**: Verify package is indexed on pkg.go.dev
-- [ ] **JSON Schema**: Generate and publish JSON Schema for job files
+- [x] **JSON Schema**: Generate and publish JSON Schema for job files
 - [ ] **OpenAPI spec** (if API is added): Auto-generate from code
 
 ---
@@ -113,7 +113,7 @@ This document tracks work needed to get the project into production-ready shape.
 ### Features
 
 - [ ] **Plugin system**: Allow external integrations/steps
-- [ ] **Config validation CLI**: `infracollect validate` command
+- [x] **Config validation CLI**: `infracollect validate` command
 - [ ] **Dry-run mode**: Preview what a job would do without executing
 - [ ] **Watch mode**: Re-run collection on schedule or file changes
 

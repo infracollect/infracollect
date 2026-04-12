@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "id": "sink-filesystem",
+  "name": "filesystemSinkConfig",
+  "attributes": [
+    {
+      "name": "path",
+      "type": "string",
+      "required": true
+    }
+  ]
+}

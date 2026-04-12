@@ -1,22 +1,43 @@
 ---
 import { marked } from "marked";
 
-interface Field {
+interface Attribute {
   name: string;
-  yamlKey: string;
   type: string;
   required: boolean;
-  template: boolean;
-  description: string;
-  enum: string[] | null;
-  ref: string | null;
-  default: string | null;
+  description?: string;
+  default?: string;
+  enum?: string[];
+}
+
+interface BlockRef {
+  name: string;
+  ref?: string;
+  required: boolean;
+  description?: string;
+}
+
+interface Variant {
+  label: string;
+  ref?: string;
+}
+
+interface Remain {
+  description?: string;
 }
 
 interface Schema {
+  schemaVersion: number;
+  id: string;
   name: string;
-  description: string;
-  fields: Field[];
+  blockHeader?: string;
+  description?: string;
+  kind?: string;
+  labelName?: string;
+  attributes?: Attribute[];
+  blocks?: BlockRef[];
+  variants?: Variant[];
+  remain?: Remain;
 }
 
 interface Props {
@@ -28,37 +49,65 @@ interface Props {
 const { schema, schemas = {}, depth = 3 } = Astro.props;
 const HeadingTag = `h${Math.min(depth, 6)}` as any;
 
-const nestedRefs = schema.fields.filter((f): f is Field & { ref: string } => f.ref !== null && f.ref in schemas).map((f) => ({ field: f, schema: schemas[f.ref] }));
-
-// Parse Markdown with full block support (lists, paragraphs, etc.)
 const md = (text: string | null | undefined) => (text ? marked.parse(text) : "");
+
+const isUnion = schema.kind === "union";
+const isFreeform = schema.kind === "freeform";
+
+// Resolve block refs to their schema objects.
+const resolvedBlocks = (schema.blocks ?? [])
+  .filter((b): b is BlockRef & { ref: string } => !!b.ref && b.ref in schemas)
+  .map((b) => ({ block: b, schema: schemas[b.ref] }));
+
+// Resolve variant refs.
+const resolvedVariants = (schema.variants ?? [])
+  .filter((v): v is Variant & { ref: string } => !!v.ref && v.ref in schemas)
+  .map((v) => ({ variant: v, schema: schemas[v.ref] }));
 ---
 
 <div class="property-reference">
   {schema.description && <div class="schema-description" set:html={md(schema.description)} />}
 
-  <ul class="property-list">
-    {
-      schema.fields.map((field) => (
+  {/* Union: show variant list */}
+  {isUnion && schema.variants && schema.variants.length > 0 && (
+    <p class="union-note">
+      Variants (selected by <code>{schema.labelName}</code> label):
+    </p>
+    <ul class="variant-list">
+      {schema.variants.map((v) => (
         <li>
-          <code>{field.yamlKey}</code>
-          {" - "}
-          <span class={`badge ${field.required ? "required" : "optional"}`}>{field.required ? "Required" : "Optional"}</span>
-          {field.template && <span class="badge template">Template</span>}
-          {field.type && !field.ref && <span class="type">({field.type})</span>}
-          {field.ref && field.ref in schemas &&
-            // prettier-ignore
-            <span>A <a href={`#${field.ref.toLowerCase()}`}><code>{field.ref}</code></a> block as defined below.</span>}
-          {field.ref && !(field.ref in schemas) && (
-            <span class="type">
-              (<code>{field.ref}</code>)
-            </span>
+          <code>{v.label}</code>
+          {v.ref && v.ref in schemas ? (
+            <span> — see <a href={`#${v.ref}`}>{v.label}</a> below</span>
+          ) : (
+            <span> — no additional configuration</span>
           )}
-          {field.description && <div class="field-description" set:html={md(field.description)} />}
-          {field.enum && (
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {/* Freeform: note about open label space */}
+  {isFreeform && (
+    <p class="freeform-note">
+      This block accepts a <code>{schema.labelName}</code> label. The body attributes depend on the specific {schema.labelName} value.
+    </p>
+  )}
+
+  {/* Attributes */}
+  {schema.attributes && schema.attributes.length > 0 && (
+    <ul class="property-list">
+      {schema.attributes.map((attr) => (
+        <li>
+          <code>{attr.name}</code>
+          {" - "}
+          <span class={`badge ${attr.required ? "required" : "optional"}`}>{attr.required ? "Required" : "Optional"}</span>
+          {attr.type && <span class="type">({attr.type})</span>}
+          {attr.description && <div class="field-description" set:html={md(attr.description)} />}
+          {attr.enum && (
             <span>
               Must be one of:{" "}
-              {field.enum.map((v, i, arr) => (
+              {attr.enum.map((v, i, arr) => (
                 <>
                   <code>{v}</code>
                   {i < arr.length - 1 ? ", " : ""}
@@ -67,24 +116,58 @@ const md = (text: string | null | undefined) => (text ? marked.parse(text) : "")
               .
             </span>
           )}
-          {field.default && (
+          {attr.default && (
             <span>
-              Defaults to <code>{field.default}</code>.
+              Defaults to <code>{attr.default}</code>.
             </span>
           )}
         </li>
-      ))
-    }
-  </ul>
+      ))}
+    </ul>
+  )}
 
-  {
-    nestedRefs.map(({ field, schema: nestedSchema }) => (
-      <div class="nested-section">
-        <HeadingTag id={field.ref!.toLowerCase()}>{field.ref}</HeadingTag>
-        <Astro.self schema={nestedSchema} schemas={schemas} depth={depth + 1} />
-      </div>
-    ))
-  }
+  {/* Block refs (non-resolved show as type hint) */}
+  {schema.blocks && schema.blocks.length > 0 && (
+    <ul class="property-list">
+      {schema.blocks.map((block) => (
+        <li>
+          <code>{block.name} {"{ }"}</code>
+          {" - "}
+          <span class={`badge ${block.required ? "required" : "optional"}`}>{block.required ? "Required" : "Optional"}</span>
+          {block.ref && block.ref in schemas ? (
+            <span> A <a href={`#${block.ref}`}><code>{block.name}</code></a> block as defined below.</span>
+          ) : block.ref ? (
+            <span class="type"> (<code>{block.ref}</code>)</span>
+          ) : null}
+          {block.description && <div class="field-description" set:html={md(block.description)} />}
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {/* Remain body note */}
+  {schema.remain && (
+    <p class="remain-note">
+      Additional attributes are passed through to the underlying provider.
+      {schema.remain.description && <span set:html={" " + md(schema.remain.description)} />}
+    </p>
+  )}
+
+  {/* Nested block schemas */}
+  {resolvedBlocks.map(({ block, schema: nestedSchema }) => (
+    <div class="nested-section">
+      <HeadingTag id={block.ref}>{nestedSchema.name || block.name}</HeadingTag>
+      <Astro.self schema={nestedSchema} schemas={schemas} depth={depth + 1} />
+    </div>
+  ))}
+
+  {/* Variant schemas */}
+  {resolvedVariants.map(({ variant, schema: variantSchema }) => (
+    <div class="nested-section">
+      <HeadingTag id={variant.ref}>{variant.label}</HeadingTag>
+      <Astro.self schema={variantSchema} schemas={schemas} depth={depth + 1} />
+    </div>
+  ))}
 </div>
 
 <style>
@@ -139,10 +222,6 @@ const md = (text: string | null | undefined) => (text ? marked.parse(text) : "")
     background: var(--sl-color-gray-6);
     color: var(--sl-color-gray-2);
   }
-  .badge.template {
-    background: var(--sl-color-blue-low);
-    color: var(--sl-color-blue-high);
-  }
   .type {
     color: var(--sl-color-gray-3);
     font-size: 0.9em;
@@ -157,5 +236,20 @@ const md = (text: string | null | undefined) => (text ? marked.parse(text) : "")
   .nested-section :global(h6) {
     font-size: 1rem;
     margin-bottom: 0.5rem;
+  }
+  .union-note,
+  .freeform-note,
+  .remain-note {
+    font-style: italic;
+    color: var(--sl-color-gray-3);
+    margin: 0.5rem 0;
+  }
+  .variant-list {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+  .variant-list li {
+    margin-bottom: 0.25rem;
   }
 </style>

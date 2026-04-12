@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "sink-s3",
+  "name": "s3SinkConfig",
+  "description": "s3SinkConfig decodes `sink \"s3\" { ... }` minus the nested credentials\nblock, which the parser has already split off into block.Credentials.",
+  "attributes": [
+    {
+      "name": "bucket",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "region",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "endpoint",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "prefix",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "force_path_style",
+      "type": "bool",
+      "required": false
+    }
+  ]
+}

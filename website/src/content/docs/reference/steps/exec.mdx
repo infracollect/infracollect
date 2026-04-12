@@ -16,7 +16,7 @@ The exec step executes an external program and captures its output. It follows T
 
 The exec step communicates with the external program using a simple protocol:
 
-- **Input**: The `input` field is encoded as JSON and passed to the program on stdin
+- **Input**: The `input` block body is encoded as JSON and passed to the program on stdin
 - **Output**: The program's stdout is captured and processed based on the `format` setting
 - **Errors**: If the program exits with a non-zero status, stderr is included in the error message
 
@@ -35,101 +35,86 @@ For security, the exec step does **not** inherit the full parent process environ
 - **Passed variables**: Variables explicitly passed via the `--pass-env` CLI flag
 - **Step-defined variables**: Variables set in the step's `env` field
 
-Additional variables can be added using the `env` field. Environment values support template expansion.
+Additional variables can be added using the `env` field. Environment values support HCL expression expansion.
 
 To pass additional environment variables from the parent process, use the `--pass-env` CLI flag:
 
 ```bash
-infracollect collect job.yaml --pass-env AWS_REGION --pass-env KUBECONFIG
+infracollect collect job.hcl --pass-env AWS_REGION --pass-env KUBECONFIG
 ```
 
 Or pass all environment variables (use with caution):
 
 ```bash
-infracollect collect job.yaml --pass-all-env
+infracollect collect job.hcl --pass-all-env
 ```
 
 ## Examples
 
 ### Run a shell command
 
-```yaml
-steps:
-  - id: date
-    exec:
-      program: ["date", "+%Y-%m-%d"]
-      format: raw
+```hcl
+step "exec" "date" {
+  program = ["date", "+%Y-%m-%d"]
+  format  = "raw"
+}
 ```
 
 ### Process JSON with jq
 
-```yaml
-steps:
-  - id: transform
-    exec:
-      program: ["jq", ".items | map(.name)"]
-      input:
-        items:
-          - name: foo
-          - name: bar
-      format: json
+```hcl
+step "exec" "transform" {
+  program = ["jq", ".items | map(.name)"]
+  input {
+    items = [
+      { name = "foo" },
+      { name = "bar" },
+    ]
+  }
+  format = "json"
+}
 ```
 
 ### Run a script with environment variables
 
-```yaml
-steps:
-  - id: api-call
-    exec:
-      program: ["./scripts/fetch-data.sh"]
-      working_dir: ./scripts
-      timeout: 60s
-      env:
-        API_KEY: ${API_KEY}
-        API_URL: https://api.example.com
+```hcl
+step "exec" "api-call" {
+  program     = ["./scripts/fetch-data.sh"]
+  working_dir = "./scripts"
+  timeout     = "60s"
+  env = {
+    API_KEY = env.API_KEY
+    API_URL = "https://api.example.com"
+  }
+}
 ```
 
 ### Collect Helm releases
 
-```yaml
-steps:
-  - id: helm-releases
-    exec:
-      program: ["helm", "list", "--all-namespaces", "--output", "json"]
-      timeout: 60s
-      format: json
+```hcl
+step "exec" "helm-releases" {
+  program = ["helm", "list", "--all-namespaces", "--output", "json"]
+  timeout = "60s"
+  format  = "json"
+}
 ```
 
 ### Use kubectl to get resources
 
-```yaml
-steps:
-  - id: pods
-    exec:
-      program: ["kubectl", "get", "pods", "-A", "-o", "json"]
-      format: json
+```hcl
+step "exec" "pods" {
+  program = ["kubectl", "get", "pods", "-A", "-o", "json"]
+  format  = "json"
+}
 ```
 
-### Template expansion in program arguments
+### HCL expression in program arguments
 
-The `program` field supports template expansion, allowing you to use environment variables in command arguments:
+The `program` field supports HCL expressions, allowing you to use environment variables in command arguments:
 
-```yaml
-steps:
-  - id: fetch-cluster
-    exec:
-      program: ["kubectl", "get", "pods", "-A", "-o", "json", "--context", "${KUBE_CONTEXT}"]
-      format: json
-```
-
-### Custom script with stdin input
-
-```yaml
-steps:
-  - id: custom-transform
-    exec:
-      program: ["python3", "-c", "import json, sys; data = json.load(sys.stdin); print(json.dumps({'count': len(data['items'])}))"]
-      input:
-        items: [1, 2, 3, 4, 5]
-      format: json
+```hcl
+step "exec" "fetch-cluster" {
+  program = ["kubectl", "get", "pods", "-A", "-o", "json", "--context", env.KUBE_CONTEXT]
+  format  = "json"
+}
 ```

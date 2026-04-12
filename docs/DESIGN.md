@@ -9,7 +9,7 @@ without needing the Terraform or OpenTofu CLI.
 ## Core Objectives
 
 1. **Provider-Agnostic Collection**: Collect resources from any infrastructure provider that has a Terraform provider
-2. **Declarative Configuration**: Define collection jobs using simple YAML configuration
+2. **Declarative Configuration**: Define collection jobs using simple HCL configuration
 3. **Multi-Collector Support**: Support multiple collectors in a single job, each with different
    providers/configurations
 4. **Pluggable Architecture**: Design for extensibility with interfaces that allow swapping implementations
@@ -29,9 +29,9 @@ The `tf-data-client` library provides a direct way to run Terraform providers as
 
 ### 1. Pluggability
 
-All major components are defined as interfaces in `pkg/engine/`, allowing for:
+All major components are defined as interfaces in `internal/engine/`, allowing for:
 
-- Different implementations of collectors (currently terraform, extensible to others)
+- Different implementations of collectors (currently terraform and HTTP, extensible to others)
 - Custom step types
 - Pluggable data collection strategies
 
@@ -39,7 +39,7 @@ All major components are defined as interfaces in `pkg/engine/`, allowing for:
 
 The system is designed to be extended without modification:
 
-- New providers can be added by simply referencing them in YAML (they work automatically via `tf-data-client`)
+- New providers can be added by referencing them in HCL (they work automatically via `tf-data-client`)
 - Custom collectors can be implemented by following the `Collector` interface
 - Custom step types can be added by implementing the `Step` interface
 
@@ -61,79 +61,65 @@ Each collector operates with its own provider instance:
 
 ## Core Concepts
 
-### CollectJob
+### Job Template
 
-A `CollectJob` is a YAML definition that describes:
+A job template is an HCL file that describes:
 
 - **Collectors**: Provider instances with their configuration
 - **Steps**: Data collection operations that reference collectors and data sources
+- **Output**: How to encode, archive, and write collected data
 
 Example:
 
-```yaml
-apiVersion: v1
-kind: CollectJob
-metadata:
-  name: k8s-deployments
-spec:
-  collectors:
-    - id: kind
-      terraform:
-        provider: hashicorp/kubernetes
-        version: v2.32.0
-        args:
-          config_path: ./kubeconfig
-          config_context: kind-kind
-  steps:
-    - id: deployments
-      terraform_datasource:
-        name: kubernetes_resources
-        collector: kind
-        args:
-          api_version: apps/v1
-          kind: Deployment
-          namespace: kube-system
+```hcl
+job {
+  name = "k8s-deployments"
+}
+
+collector "terraform" "kind" {
+  provider       = "hashicorp/kubernetes"
+  version        = "2.32.0"
+  config_path    = "./kubeconfig"
+  config_context = "kind-kind"
+}
+
+step "terraform_datasource" "deployments" {
+  collector = collector.terraform.kind
+  datasource "kubernetes_resources" {
+    api_version = "apps/v1"
+    kind        = "Deployment"
+    namespace   = "kube-system"
+  }
+}
 ```
 
 ### Collectors
 
-A **Collector** represents an instance of a Terraform provider with specific configuration:
+A **Collector** represents an instance of a data source provider with specific configuration:
 
-- Each collector has a unique ID
-- Contains provider name, version, and arguments
-- Manages its own provider instance via `tf-data-client`
-- Can be referenced by multiple steps
+- Each collector has a type and unique ID (the two HCL labels)
+- Contains provider-specific attributes
+- Manages its own provider instance via `tf-data-client` (for Terraform) or HTTP client (for HTTP)
+- Can be referenced by multiple steps via `collector.<type>.<id>`
 
 ### Steps
 
 A **Step** represents a data collection operation:
 
-- References a collector by ID
-- Specifies a Terraform data source to query
+- References a collector via expression (e.g., `collector.terraform.kind`)
+- Specifies a data source to query
 - Provides arguments for the data source
 - Produces collected resource data
-
-### DataSources
-
-A **DataSource** is a Terraform data source that queries infrastructure:
-
-- Examples: `kubernetes_resources`, `aws_instances`, `azurerm_resources`
-- Each data source has specific arguments
-- Returns resource data in JSON format
+- Supports `for_each` for fan-out over collections
 
 ### Output and Archival
 
-Output is configured via `spec.output` with three concerns:
+Output is configured via the `output` block with three concerns:
 
-1. **Encoding**: How to format each step’s data (e.g., JSON with optional indentation).
+1. **Encoding**: How to format each step's data (e.g., JSON with optional indentation).
 2. **Archive** (optional): How to bundle step outputs into a single file. When set, all encoded step results are
-   collected into a tar archive with optional gzip or zstd compression. Archive requires a filesystem or S3 sink; stdout
-   is not supported because it is a stream of per-step lines.
-3. **Sink**: Where to write—stdout, filesystem, or S3. With archive, the sink receives one file (e.g.,
-   `my-job-20260124T120000Z.tar.gz`) containing `{step-id}.{extension}` entries.
-
-Template variables (`$JOB_NAME`, `$JOB_DATE_ISO8601`, `$JOB_DATE_RFC3339`) can be used in archive names and sink
-prefixes for organized, timestamped output.
+   collected into a tar archive with optional gzip or zstd compression.
+3. **Sink**: Where to write — stdout, filesystem, or S3.
 
 ## Multi-Collector Support
 
@@ -154,10 +140,8 @@ The system supports multiple collectors in a single job:
 
 ## Future Considerations
 
-- **Output Formats**: Add YAML, CSV, or other encoding formats
 - **Archive Formats**: Support formats beyond tar (e.g., zip) if needed
 - **Plugin System**: Allow custom collectors and step types via plugins
 - **Scheduling**: Support scheduled collection jobs
 - **Caching**: Cache collected data to reduce provider API calls
 - **Filtering**: Add filtering capabilities for collected resources
-- **Parallel Step Execution**: Execute independent steps concurrently

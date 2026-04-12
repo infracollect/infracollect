@@ -19,7 +19,15 @@ vuln = "govulncheck ./..."
 
 [tasks.gen-docs]
 run = "go run scripts/gen-docs.go"
-sources = ["apis/v1/*.go", "scripts/gen-docs.go"]
+sources = [
+  "docs/registry.yaml",
+  "scripts/gen-docs.go",
+  "scripts/gendocs/**/*.go",
+  "internal/integrations/**/*.go",
+  "internal/engine/steps/register.go",
+  "internal/runner/template.go",
+  "internal/runner/output.go",
+]
 outputs = ["website/src/data/schemas/*.json"]
 
 [tasks.gen-cli-docs]

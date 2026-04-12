@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "id": "archive-tar",
+  "name": "tarArchiveConfig",
+  "attributes": [
+    {
+      "name": "compression",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

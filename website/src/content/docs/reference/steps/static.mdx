@@ -27,40 +27,36 @@ When `parse_as` is not specified:
 
 ## Output format
 
-When using `parse_as: raw`:
+When using `parse_as = "raw"`:
 - For files: `{"filename": "<filepath>"}`
 - For inline values: `{"value": "<content>"}`
 
-When using `parse_as: json`, the parsed JSON structure is included directly.
+When using `parse_as = "json"`, the parsed JSON structure is included directly.
 
 ## Examples
 
 ### Load a JSON file
 
-```yaml
-steps:
-  - id: config
-    static:
-      filepath: ./config.json
+```hcl
+step "static" "config" {
+  filepath = "./config.json"
+}
 ```
 
 ### Inline JSON value
 
-```yaml
-steps:
-  - id: metadata
-    static:
-      value: |
-        {"environment": "production", "version": "1.0.0"}
-      parse_as: json
+```hcl
+step "static" "metadata" {
+  value    = "{\"environment\": \"production\", \"version\": \"1.0.0\"}"
+  parse_as = "json"
+}
 ```
 
 ### Raw file content
 
-```yaml
-steps:
-  - id: readme
-    static:
-      filepath: ./README.md
-      parse_as: raw
+```hcl
+step "static" "readme" {
+  filepath = "./README.md"
+  parse_as = "raw"
+}
 ```

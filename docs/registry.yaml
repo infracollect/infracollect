@@ -1,0 +1,139 @@
+# Documentation generation registry.
+# Each entry describes one schema target that scripts/gen-docs.go extracts
+# from Go source and emits as a JSON schema file for the website.
+#
+# Plugin repos can ship their own registry fragment in the future.
+
+targets:
+  # ── HTTP integration ───────────────────────────────────────────────
+  - id: http-collector
+    package: github.com/infracollect/infracollect/internal/integrations/http
+    type: CollectorConfig
+    kind: rootBlock
+    blockHeader: 'collector "http" "<id>"'
+
+  - id: http-auth
+    package: github.com/infracollect/infracollect/internal/integrations/http
+    type: AuthBlock
+    kind: union
+    blockHeader: 'auth "<kind>"'
+    variants:
+      basic: http-auth-basic
+
+  - id: http-auth-basic
+    package: github.com/infracollect/infracollect/internal/integrations/http
+    type: AuthBlock
+    kind: variant
+    # Same struct as http-auth — generator emits only the non-label fields.
+
+  - id: http-get-step
+    package: github.com/infracollect/infracollect/internal/integrations/http
+    type: GetStepConfig
+    kind: stepBlock
+    blockHeader: 'step "http_get" "<id>"'
+
+  # ── Terraform integration ──────────────────────────────────────────
+  - id: terraform-collector
+    package: github.com/infracollect/infracollect/internal/integrations/terraform
+    type: CollectorConfig
+    kind: rootBlock
+    blockHeader: 'collector "terraform" "<id>"'
+
+  - id: terraform-datasource-step
+    package: github.com/infracollect/infracollect/internal/integrations/terraform
+    type: DataSourceStepConfig
+    kind: stepBlock
+    blockHeader: 'step "terraform_datasource" "<id>"'
+
+  - id: terraform-datasource
+    package: github.com/infracollect/infracollect/internal/integrations/terraform
+    type: DataSourceBlock
+    kind: union
+    blockHeader: 'datasource "<kind>"'
+    # Open label space — no variants listed; generator emits freeform note.
+
+  # ── Built-in steps ─────────────────────────────────────────────────
+  - id: static-step
+    package: github.com/infracollect/infracollect/internal/engine/steps
+    type: StaticHCLConfig
+    kind: stepBlock
+    blockHeader: 'step "static" "<id>"'
+
+  - id: exec-step
+    package: github.com/infracollect/infracollect/internal/engine/steps
+    type: ExecHCLConfig
+    kind: stepBlock
+    blockHeader: 'step "exec" "<id>"'
+
+  # ── Output pipeline ────────────────────────────────────────────────
+  - id: output
+    package: github.com/infracollect/infracollect/internal/runner
+    type: OutputBlock
+    kind: rootBlock
+    blockHeader: output
+
+  - id: encoding
+    package: github.com/infracollect/infracollect/internal/runner
+    type: EncodingBlock
+    kind: union
+    blockHeader: 'encoding "<kind>"'
+    variants:
+      json: encoding-json
+
+  - id: encoding-json
+    package: github.com/infracollect/infracollect/internal/runner
+    type: jsonEncodingConfig
+    kind: variant
+
+  - id: archive
+    package: github.com/infracollect/infracollect/internal/runner
+    type: ArchiveBlock
+    kind: union
+    blockHeader: 'archive "<kind>"'
+    variants:
+      tar: archive-tar
+
+  - id: archive-tar
+    package: github.com/infracollect/infracollect/internal/runner
+    type: tarArchiveConfig
+    kind: variant
+
+  - id: sink
+    package: github.com/infracollect/infracollect/internal/runner
+    type: SinkBlock
+    kind: union
+    blockHeader: 'sink "<kind>"'
+    variants:
+      stdout: ~
+      stderr: ~
+      filesystem: sink-filesystem
+      s3: sink-s3
+
+  - id: sink-filesystem
+    package: github.com/infracollect/infracollect/internal/runner
+    type: filesystemSinkConfig
+    kind: variant
+
+  - id: sink-s3
+    package: github.com/infracollect/infracollect/internal/runner
+    type: s3SinkConfig
+    kind: variant
+
+  - id: sink-s3-credentials
+    package: github.com/infracollect/infracollect/internal/runner
+    type: s3CredentialsConfig
+    kind: variant
+
+  # ── Job structure (multi-type page target) ─────────────────────────
+  - id: job-structure
+    kind: page
+    types:
+      - package: github.com/infracollect/infracollect/internal/runner
+        type: JobBlock
+        blockHeader: job
+      - package: github.com/infracollect/infracollect/internal/runner
+        type: CollectorBlock
+        blockHeader: 'collector "<type>" "<name>"'
+      - package: github.com/infracollect/infracollect/internal/runner
+        type: StepBlock
+        blockHeader: 'step "<type>" "<name>"'

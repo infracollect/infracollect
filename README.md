@@ -1,6 +1,6 @@
 <p align="center"><img src="./website/public/full-logo.png" alt="infracollect" /></p>
 
-**Collect infrastructure data from anywhere** — cloud providers, Kubernetes clusters, REST APIs — all with simple YAML
+**Collect infrastructure data from anywhere** — cloud providers, Kubernetes clusters, REST APIs — all with simple HCL
 configuration.
 
 infracollect lets you query and export data from your infrastructure using declarative job definitions.
@@ -10,7 +10,7 @@ Specific collectors will be added over time to support more data sources nativel
 ## Why infracollect?
 
 - **Infinite data sources** — Use Terraform providers, HTTP APIs, local files and more to collect data
-- **Declarative YAML** — Define what to collect, not how to collect it
+- **Declarative HCL** — Define what to collect, not how to collect it
 - **Flexible output** — Write to stdout, local files, or S3-compatible storage; optionally bundle results into a single
   `.tar.gz` or `.tar.zst` archive
 
@@ -24,36 +24,28 @@ go install github.com/infracollect/infracollect/cmd/infracollect@latest
 
 ### Your First Collection Job
 
-Create a file called `job.yaml`:
+Create a file called `job.hcl`:
 
-```yaml
-apiVersion: v1
-kind: CollectJob
-metadata:
-  name: my-first-job
-spec:
-  collectors:
-    - id: k8s
-      terraform:
-        provider: hashicorp/kubernetes
-        args:
-          config_path: ~/.kube/config
+```hcl
+collector "terraform" "k8s" {
+  provider    = "hashicorp/kubernetes"
+  config_path = "~/.kube/config"
+}
 
-  steps:
-    - id: deployments
-      collector: k8s
-      terraform_datasource:
-        name: kubernetes_resources
-        args:
-          api_version: apps/v1
-          kind: Deployment
-          namespace: default
+step "terraform_datasource" "deployments" {
+  collector = collector.terraform.k8s
+  datasource "kubernetes_resources" {
+    api_version = "apps/v1"
+    kind        = "Deployment"
+    namespace   = "default"
+  }
+}
 ```
 
 Run it:
 
 ```bash
-infracollect collect job.yaml
+infracollect collect job.hcl
 ```
 
 The collected data is printed to stdout as JSON.

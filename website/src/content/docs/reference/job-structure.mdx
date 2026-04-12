@@ -1,0 +1,121 @@
+---
+title: Job Structure
+description: Reference for the top-level HCL job template structure.
+---
+
+An infracollect job template is an HCL file containing four top-level block types: `job`, `collector`, `step`, and `output`. This page documents the structure and meta-attributes of each.
+
+## job
+
+The optional `job` block sets top-level metadata. When omitted, the job name defaults to the filename (without extension).
+
+```hcl
+job {
+  name = "infrastructure-snapshot"
+}
+```
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | No | The job name, used in output filenames and archive names. |
+
+## collector
+
+Collector blocks configure data source providers. Each block has two labels: the **type** (integration name) and the **id** (unique within the job).
+
+```hcl
+collector "<type>" "<id>" {
+  # Integration-specific attributes...
+}
+```
+
+The body of the collector block is passed to the integration for decoding. See the individual collector reference pages ([HTTP](/reference/collectors/http/), [Terraform](/reference/collectors/terraform/)) for available attributes.
+
+### Example
+
+```hcl
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  version  = "5.0.0"
+  region   = "us-east-1"
+}
+
+collector "http" "github" {
+  base_url = "https://api.github.com"
+}
+```
+
+## step
+
+Step blocks define data collection operations. Each block has two labels: the **type** (step kind) and the **id** (unique within the job).
+
+```hcl
+step "<type>" "<id>" {
+  # Meta-attributes...
+  # Step-specific attributes...
+}
+```
+
+### Meta-attributes
+
+These attributes are available on all step types, regardless of the integration:
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `collector` | reference | No | Reference to the collector this step uses, e.g. `collector.terraform.aws`. Not all step types require a collector. |
+| `for_each` | expression | No | An expression that evaluates to a collection. The step is executed once per element, with `each.key` and `each.value` available in the step body. |
+
+The remaining body is passed to the step integration for decoding. See the individual step reference pages ([Static](/reference/steps/static/), [Exec](/reference/steps/exec/), [HTTP GET](/reference/collectors/http/#http-get)) for available attributes.
+
+### Example
+
+```hcl
+step "terraform_datasource" "vpcs" {
+  collector = collector.terraform.aws
+  datasource "aws_vpcs" {}
+}
+
+step "exec" "pods" {
+  for_each = step.terraform_datasource.vpcs.result
+  program  = ["kubectl", "get", "pods", "-n", each.value.id, "-o", "json"]
+  format   = "json"
+}
+```
+
+## output
+
+The optional `output` block configures how collected data is encoded, archived, and written. It contains up to three labeled sub-blocks:
+
+```hcl
+output {
+  encoding "<kind>" {
+    # Encoding-specific attributes...
+  }
+  archive "<kind>" {
+    # Archive-specific attributes...
+  }
+  sink "<kind>" {
+    # Sink-specific attributes...
+  }
+}
+```
+
+See the [Archive](/reference/output/archive/) and [Sinks](/reference/output/sinks/) reference pages for details.
+
+### Example
+
+```hcl
+output {
+  encoding "json" {
+    indent = "  "
+  }
+  archive "tar" {
+    compression = "gzip"
+  }
+  sink "s3" {
+    bucket = "my-bucket"
+    region = "us-east-1"
+    prefix = "daily/"
+  }
+}
+```

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "archive",
+  "name": "ArchiveBlock",
+  "blockHeader": "archive \"\u003ckind\u003e\"",
+  "description": "ArchiveBlock is `archive \"\u003ckind\u003e\" { ... }`.",
+  "kind": "union",
+  "labelName": "kind",
+  "variants": [
+    {
+      "label": "tar",
+      "ref": "archive-tar"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "id": "encoding-json",
+  "name": "jsonEncodingConfig",
+  "attributes": [
+    {
+      "name": "indent",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

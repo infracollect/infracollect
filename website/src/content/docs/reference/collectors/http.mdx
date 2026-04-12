@@ -5,7 +5,7 @@ description: Reference for the HTTP collector configuration.
 
 import PropertyReference from '../../../../components/PropertyReference.astro';
 import httpAuth from '../../../../data/schemas/http-auth.json';
-import httpBasicAuth from '../../../../data/schemas/http-basic-auth.json';
+import httpAuthBasic from '../../../../data/schemas/http-auth-basic.json';
 import httpCollector from '../../../../data/schemas/http-collector.json';
 import httpGetStep from '../../../../data/schemas/http-get-step.json';
 
@@ -16,25 +16,25 @@ The HTTP collector provides a base configuration for making HTTP requests to RES
 <PropertyReference
   schema={httpCollector}
   schemas={{
-    HTTPAuth: httpAuth,
-    HTTPBasicAuth: httpBasicAuth,
+    "http-auth": httpAuth,
+    "http-auth-basic": httpAuthBasic,
   }}
 />
 
 ## Example
 
-```yaml
-collectors:
-  - id: api
-    http:
-      base_url: https://api.example.com
-      headers:
-        Accept: application/json
-      auth:
-        basic:
-          username: admin
-          password: secret
-      timeout: 30
+```hcl
+collector "http" "api" {
+  base_url = "https://api.example.com"
+  headers = {
+    Accept = "application/json"
+  }
+  auth "basic" {
+    username = env.API_USER
+    password = env.API_PASSWORD
+  }
+  timeout = 30
+}
 ```
 
 ## Steps
@@ -46,24 +46,18 @@ external or internal services exposing a REST API.
 
 #### Configuration
 
-<PropertyReference
-  schema={httpGetStep}
-  schemas={{
-    HTTPAuth: httpAuth,
-    HTTPBasicAuth: httpBasicAuth,
-  }}
-/>
+<PropertyReference schema={httpGetStep} />
 
 #### Example
 
-```yaml
-steps:
-  - id: get-users
-    collector: api
-    http_get:
-      path: /users
-      params:
-        page: "1"
-        limit: "10"
-      response_type: json
+```hcl
+step "http_get" "get-users" {
+  collector = collector.http.api
+  path      = "/users"
+  params = {
+    page  = "1"
+    limit = "10"
+  }
+  response_type = "json"
+}
 ```

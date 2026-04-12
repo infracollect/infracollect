@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "http-auth-basic",
+  "name": "AuthBlock",
+  "description": "AuthBlock is a labeled block whose label selects the auth scheme. Today\nonly `basic` is supported; future schemes (bearer, oauth) add new label\ncases without breaking existing configs.",
+  "attributes": [
+    {
+      "name": "username",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "encoded",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

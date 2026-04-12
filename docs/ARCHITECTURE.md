@@ -2,8 +2,8 @@
 
 ## System Overview
 
-infracollect follows a pipeline-based architecture where YAML-defined collection jobs are parsed, validated, and
-executed to collect infrastructure resources. It supports multiple collector types:
+infracollect follows a pipeline-based architecture where HCL job templates are parsed into a DAG, then executed
+topologically to collect infrastructure resources. It supports multiple collector types:
 
 - **Terraform collectors**: Use Terraform providers via the `tf-data-client` library
 - **HTTP collectors**: Make HTTP requests to REST APIs
@@ -12,12 +12,11 @@ executed to collect infrastructure resources. It supports multiple collector typ
 
 ```mermaid
 flowchart TD
-    YAML[YAML Job Definition] --> Parser[Job Parser]
-    Parser --> Validate[Validation]
-    Validate --> Runner[Runner]
-    Runner --> Pipeline[Pipeline]
+    HCL[HCL Job Template] --> Parser[ParseJobTemplate]
+    Parser --> Build[BuildPipeline / DAG]
+    Build --> Runner[Runner]
 
-    Pipeline --> Collectors[Collectors]
+    Runner --> Collectors[Collectors]
     Collectors --> TFC[Terraform Collectors]
     Collectors --> HC[HTTP Collectors]
 
@@ -34,9 +33,11 @@ flowchart TD
     API1 --> Results3[API Response]
     APIN --> Results4[API Response]
 
-    Pipeline --> Steps[Steps]
+    Runner --> Steps[Steps]
     Steps --> TFStep[Terraform Steps]
     Steps --> HTTPStep[HTTP Steps]
+    Steps --> ExecStep[Exec Steps]
+    Steps --> StaticStep[Static Steps]
 
     TFStep --> TFC
     HTTPStep --> HC
@@ -51,38 +52,50 @@ flowchart TD
 
 ### 1. Job Parser
 
-**Location**: `internal/runner/`
+**Location**: `internal/runner/template.go`
 
 **Responsibilities**:
 
-- Parse YAML files into `CollectJob` structs (defined in `apis/v1/`)
-- Validate job structure and references using JSON Schema
-- Ensure collector IDs referenced in steps exist
-- Validate YAML schema against the `CollectJob` struct
+- Parse HCL files into `JobTemplate` structs
+- Extract block labels (type, ID) for collectors and steps
+- Preserve unevaluated `hcl.Body` for deferred decoding during execution
 
 **Key Functions**:
 
-- `ParseCollectJob()`: Parses and validates YAML job files
+- `ParseJobTemplate()`: Parses HCL bytes into a `JobTemplate` with source-range diagnostics
 
-### 2. Pipeline
+### 2. Pipeline / DAG
 
-**Location**: `internal/engine/pipeline.go`
+**Location**: `internal/runner/pipeline.go`, `internal/runner/dag.go`
 
 **Responsibilities**:
 
-- Manage collectors and steps in a single pipeline
-- Provide collector lookup by ID
-- Execute all steps and collect results
-- Maintain lifecycle of collectors and steps
+- Build a directed acyclic graph (DAG) of collectors and steps
+- Extract references from HCL expressions via `expr.Variables()` to wire edges
+- Validate that all references resolve and no cycles exist
+- Hold per-node metadata (decoded `hcl.Body`, references, `for_each` expression)
 
-**Key Methods**:
+**Key Functions**:
 
-- `AddCollector()`: Add a collector to the pipeline
-- `AddStep()`: Add a step to the pipeline
-- `GetCollector()`: Retrieve a collector by ID
-- `Run()`: Execute all steps and return results
+- `BuildPipeline()`: Walks template collectors + steps, extracts references, builds DAG edges
 
-### 3. Collectors
+### 3. Runner
+
+**Location**: `internal/runner/run.go`
+
+**Responsibilities**:
+
+- Walk the DAG in topological order
+- For each node, build an `hcl.EvalContext` with predecessor results stamped in
+- Call integration factories to decode the `hcl.Body` and create collector/step instances
+- Execute steps and collect results
+- Write results to configured sink
+
+**Key Functions**:
+
+- `Run()`: Topological execution of the pipeline
+
+### 4. Collectors
 
 **Locations**:
 
@@ -96,51 +109,49 @@ flowchart TD
 - Execute queries/requests
 - Manage lifecycle (start/close)
 
-**Interfaces**:
+**Interface** (in `internal/engine/collector.go`):
 
-- `Collector` (in `internal/engine/collector.go`)
+```go
+type Collector interface {
+    Named
+    Closer
+    Start(context.Context) error
+}
+```
 
 #### Terraform Collector
 
-**Responsibilities**:
-
-- Wrap Terraform providers using `tf-data-client`
-- Initialize and configure providers
-- Execute data source queries
+- `Start()`: Initializes and configures the Terraform provider via `tf-data-client`
+- `ReadDataSource()`: Executes a data source query
+- `Close()`: Cleans up the provider instance
 
 #### HTTP Collector
 
-**Responsibilities**:
+- `Start()`: No-op (HTTP client is created in constructor)
+- `Do()`: Executes an HTTP request
+- `Close()`: No-op
 
-- Make HTTP requests to REST APIs
-- Handle authentication (Basic auth)
-- Manage headers, timeouts, and TLS settings
-- Support gzip response decompression
-
-### 4. Steps
+### 5. Steps
 
 **Locations**:
 
+- `internal/engine/steps/` - Built-in steps (static, exec)
 - `internal/integrations/terraform/steps.go` - Terraform data source steps
 - `internal/integrations/http/steps.go` - HTTP request steps
 
-**Responsibilities**:
+**Interface** (in `internal/engine/step.go`):
 
-- Represent a data collection operation
-- Reference a collector
-- Execute queries/requests through the collector
-- Return results in standardized format
+```go
+type Step interface {
+    Named
+    Resolve(ctx context.Context) (Result, error)
+}
+```
 
-**Interfaces**:
+Each integration defines its own HCL config struct with `hcl:"..."` tags. The factory receives an `hcl.Body` plus
+the per-node `hcl.EvalContext` and calls `gohcl.DecodeBody` to populate the config.
 
-- `Step` (in `internal/engine/step.go`)
-
-**Implementations**:
-
-- `dataSourceStep`: Executes Terraform data sources through terraform collectors
-- `getStep`: Executes HTTP GET requests through HTTP collectors
-
-### 5. tf-data-client Integration
+### 6. tf-data-client Integration
 
 **Location**: External library `github.com/infracollect/tf-data-client`
 
@@ -151,307 +162,75 @@ flowchart TD
 - Execute data source queries
 - Manage provider lifecycle
 
-**Key Features**:
-
-- No need for OpenTofu CLI or HCL generation
-- Direct Go library integration with Terraform providers
-- Handles provider initialization and configuration internally
-
 ## Data Flow
 
 ### 1. Job Definition → Parsing
 
 ```text
-YAML File → runner.ParseCollectJob() → CollectJob struct
+HCL File → runner.ParseJobTemplate() → JobTemplate (with unevaluated hcl.Body fields)
 ```
 
-### 2. Validation
+### 2. Pipeline Building
 
 ```text
-CollectJob → JSON Schema Validation → Validated Job
+JobTemplate → runner.BuildPipeline() → Pipeline (DAG with nodes and edges)
 ```
 
-### 3. Pipeline Creation
+### 3. Topological Execution
 
 ```text
-CollectJob → runner.createPipeline() → Pipeline with Collectors and Steps
-→ terraform.NewCollector() → Collector instances
+Pipeline.DAG → topological walk → for each node:
+  1. Build hcl.EvalContext (predecessor results, env vars, each.key/each.value)
+  2. gohcl.DecodeBody → integration config struct
+  3. Factory creates collector/step instance
+  4. Execute (Start for collectors, Resolve for steps)
 ```
 
-### 4. Collector Initialization
-
-**Terraform Collectors**:
-
-```text
-Collector.Start() → tf-data-client.CreateProvider() → Provider instance
-→ Provider.Configure() → Provider configured
-```
-
-**HTTP Collectors**:
-
-```text
-Collector.Start() → (no-op, HTTP client is ready)
-```
-
-### 5. Step Execution
-
-**Terraform Steps**:
-
-```text
-Pipeline.Run() → Step.Resolve() → Collector.ReadDataSource()
-→ tf-data-client Provider → Resource Data
-→ Result struct
-```
-
-**HTTP Steps**:
-
-```text
-Pipeline.Run() → Step.Resolve() → Collector.Do(request)
-→ HTTP Client → API Response
-→ JSON/Raw parsing → Result struct
-```
-
-### 6. Result Collection
-
-```text
-Step Results → Map[string]Result → Returned to Runner
-```
-
-### 7. Result Writing
+### 4. Result Writing
 
 ```text
 Runner.WriteResults() → Encoder.EncodeResult() → Sink.Write() [per step]
-→ Sink.Close() [after all steps; if ArchiveSink: Archiver.Close() → inner Sink.Write(archive) → inner Sink.Close()]
+→ Sink.Close()
 → Files written (one per step, or one archive containing all steps) or stdout output
 ```
 
-The Runner handles all result writing:
+## Output System
 
-- Encodes each result using the configured encoder
-- Writes to the configured sink (stdout, filesystem, S3, or ArchiveSink wrapping filesystem/S3)
-- Without archive: each step's result is written as a separate file with filename `{step-id}.{extension}`
-- With archive: each step's result is added to the archiver; on `Sink.Close`, the archive is written as one file (e.g.,
-  `$JOB_NAME-$JOB_DATE_ISO8601.tar.gz`) to the inner sink
-- Results include an `id` field identifying the step
+Results are written by the Runner through an encoder and sink. When `output.archive` is configured, an `ArchiveSink`
+wraps the underlying sink and bundles all step outputs into a single archive file.
 
-## Multi-Collector Execution Model
+### Encoders
 
-### Isolation
+**Location**: `internal/engine/encoders/`
 
-Each collector operates independently:
+- Encode results into specific formats (currently JSON)
+- Provide file extensions for output files
 
-**Terraform Collectors**:
+### Archivers
 
-- Each collector has its own provider instance managed by `tf-data-client`
-- Providers are isolated at the library level
-- No shared state between collectors
+**Location**: `internal/engine/archiver.go` (interface), `internal/engine/archivers/` (implementations)
 
-**HTTP Collectors**:
+- Collect multiple files into an archive (tar with optional compression)
+- `TarArchiver`: Tar with gzip, zstd, or no compression (`.tar.gz`, `.tar.zst`, `.tar`)
 
-- Each collector has its own HTTP client instance
-- Separate base URLs, headers, and authentication
-- Connection pooling per collector
+### Sinks
 
-### Concurrent Execution
+**Location**: `internal/engine/sinks/`
 
-- Collectors are initialized sequentially (all started before steps run)
-- Steps execute sequentially through the pipeline
-- Each collector maintains its own provider instance
-- Multiple steps can reference the same collector
-
-### Step Execution
-
-Steps reference collectors by ID:
-
-```yaml
-steps:
-  # Terraform data source step
-  - id: step1
-    terraform_datasource:
-      collector: k8s-collector # References terraform collector
-      name: kubernetes_resources
-      args: { ... }
-  # HTTP GET step
-  - id: step2
-    http_get:
-      collector: api-collector # References HTTP collector
-      path: /users
-      response_type: json
-```
-
-## Interface Contracts
-
-### Collector Interface
-
-```go
-type Collector interface {
-    Named
-    Closer
-    Start(context.Context) error
-}
-```
-
-**Implementations**:
-
-`terraform.Collector`:
-
-- `Start()`: Initializes and configures the Terraform provider via `tf-data-client`
-- `ReadDataSource()`: Executes a data source query (used by terraform steps)
-- `Close()`: Cleans up the provider instance
-
-`http.Collector`:
-
-- `Start()`: No-op (HTTP client is created in constructor)
-- `Do()`: Executes an HTTP request (used by HTTP steps)
-- `Close()`: No-op (HTTP client cleanup is automatic)
-
-### Step Interface
-
-```go
-type Step interface {
-    Named
-    Resolve(ctx context.Context) (Result, error)
-}
-```
-
-Steps execute data collection operations and return results.
-
-**Implementations**:
-
-- `terraform.NewDataSourceStep()`: Creates steps that execute Terraform data sources
-- `http.NewGetStep()`: Creates steps that execute HTTP GET requests
-
-### Result Type
-
-```go
-type Result struct {
-    ID   string `json:"id"`
-    Data any    `json:"data"`
-}
-```
-
-Results contain:
-
-- `ID`: The step identifier that produced this result
-- `Data`: The collected data from the step's data source query
-
-### Runner
-
-**Location**: `internal/runner/run.go`
-
-**Responsibilities**:
-
-- Orchestrate pipeline execution
-- Manage collector lifecycle (start/close)
-- Write results to configured sink
-- Handle encoding and output formatting
-
-**Key Methods**:
-
-- `New()`: Creates a new Runner with pipeline, encoder, and sink
-- `Run()`: Executes the pipeline and writes results
-- `WriteResults()`: Encodes and writes results to the sink
-
-**Output Behavior**:
-
-- Without archive: writes one file per step with filename `{step-id}.{extension}`; for stdout each result is a separate
-  line; for filesystem/S3 each result is its own file
-- With archive: an `ArchiveSink` wraps the underlying sink; each step write is added to an in-memory archive; on `Close`,
-  the archive is finalized and written as a single file (e.g., `.tar.gz`) to the inner sink
+- `StreamSink`: Writes to an `io.Writer` (typically stdout)
+- `FilesystemSink`: Writes to files on the local filesystem
+- `S3Sink`: Writes to S3-compatible object storage
+- `ArchiveSink`: Wraps another sink; adds each write to an archiver; on close, writes the archive to the inner sink
 
 ## Error Handling
 
-- **Validation Errors**: Returned during job parsing/validation
-- **Initialization Errors**: Returned when collectors fail to initialize
-- **Execution Errors**: Returned when data source queries fail
-- **Step Resolution Errors**: Returned when steps fail to resolve
-
-All errors are wrapped with context and returned through the interface methods. Errors include relevant identifiers
-(collector IDs, step IDs) to aid debugging.
+- **Parse Errors**: Returned as `hcl.Diagnostics` with source ranges pointing at the offending token
+- **Initialization Errors**: Returned when collectors fail to start
+- **Execution Errors**: Returned when steps fail to resolve
+- All errors are wrapped with context via `fmt.Errorf` with `%w`
 
 ## Logging
 
 - Structured logging using `zap`
 - Log levels: debug, info, warn, error, fatal
 - Context-aware logging throughout the pipeline
-- Collector-specific log contexts
-
-## Output System
-
-Results are written by the Runner through an encoder and sink. When `output.archive` is configured, an `ArchiveSink`
-wraps the underlying sink and an `Archiver` bundles all step outputs into a single archive file.
-
-### Encoders
-
-**Location**: `internal/engine/encoders/`
-
-**Responsibilities**:
-
-- Encode results into specific formats (JSON, YAML, etc.)
-- Provide file extensions for output files
-
-**Interfaces**:
-
-- `Encoder`: Encodes a single result to a reader
-
-### Archivers
-
-**Location**: `internal/engine/archiver.go` (interface), `internal/engine/archivers/` (implementations)
-
-**Responsibilities**:
-
-- Collect multiple files into an archive (tar with optional compression)
-- Expose `AddFile` to add step outputs, `Close` to finalize and obtain the archive bytes, and `Extension` for the file
-  extension (e.g., `.tar.gz`)
-
-**Interfaces**:
-
-- `Archiver`: `AddFile(ctx, filename, data)`, `Close() (io.Reader, error)`, `Extension() string`
-
-**Implementations**:
-
-- `archivers.TarArchiver`: Tar with gzip, zstd, or no compression (`.tar.gz`, `.tar.zst`, `.tar`)
-
-### Sinks
-
-**Location**: `internal/engine/sinks/`
-
-**Responsibilities**:
-
-- Write encoded data to destinations (stdout, filesystem, S3)
-- Handle file creation and directory management
-
-**Interfaces**:
-
-- `Sink`: `Write(ctx, path, data)`, `Close(ctx)`, plus `Named`
-
-**Types**:
-
-- `StreamSink`: Writes to an `io.Writer` (typically stdout)
-- `FilesystemSink`: Writes to files on the local filesystem
-- `S3Sink`: Writes to S3-compatible object storage
-- `ArchiveSink`: Wraps another sink; on each `Write`, adds the data to an `Archiver`; on `Close`, finalizes the archive
-  and writes the single archive file to the inner sink, then closes the inner sink. Requires a filesystem or S3 sink;
-  cannot wrap stdout.
-
-### Writing Flow
-
-1. Runner collects results from `Pipeline.Run()`.
-2. If `output.archive` is set, the sink is an `ArchiveSink`; otherwise it is a `StreamSink`, `FilesystemSink`, or
-   `S3Sink` directly.
-3. For each result:
-   - Encoder encodes the result.
-   - **Without archive**: Sink writes with path `{step-id}.{extension}`.
-   - **With archive**: `ArchiveSink.Write` adds the data to the `Archiver` under path `{step-id}.{extension}`.
-4. On `Sink.Close`:
-   - **Without archive**: Sink closes (no-op for stream/fs; S3 may flush).
-   - **With archive**: `ArchiveSink.Close` calls `Archiver.Close`, writes the archive to the inner sink with the
-     configured archive name (e.g., `$JOB_NAME-$JOB_DATE_ISO8601.tar.gz`), then closes the inner sink.
-
-## Future Architecture Considerations
-
-- **Plugin System**: Load collectors and output handlers dynamically
-- **Caching Layer**: Cache provider schemas and collected data
-- **Scheduler**: Support scheduled pipeline execution
-- **API Server**: REST API for pipeline management
-- **Web UI**: Dashboard for viewing collected resources

@@ -1,42 +1,24 @@
 {
-  "name": "StaticStep",
-  "description": "",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "static-step",
+  "name": "StaticHCLConfig",
+  "blockHeader": "step \"static\" \"\u003cid\u003e\"",
+  "description": "StaticHCLConfig is the HCL-level shape of a `step \"static\" \"\u003cid\u003e\" { ... }` block.\nFilepath and Value are mutually exclusive; exactly one must be set. The\nchoice is validated at construction time rather than at the HCL schema\nlevel because HCL labeled-block discrimination would cost more ergonomics\nthan it buys for a two-arm union.",
+  "attributes": [
     {
-      "name": "Filepath",
-      "yamlKey": "filepath",
+      "name": "filepath",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "Filepath is a local and relative path to a file. Symlinks and directories are not allowed.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": false
     },
     {
-      "name": "Value",
-      "yamlKey": "value",
+      "name": "value",
       "type": "string",
-      "required": false,
-      "template": true,
-      "description": "Value is an inline value to use as the static value.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": false
     },
     {
-      "name": "ParseAs",
-      "yamlKey": "parse_as",
+      "name": "parse_as",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "ParseAs is the format to parse the value as.",
-      "enum": [
-        "json",
-        "raw"
-      ],
-      "ref": null,
-      "default": null
+      "required": false
     }
   ]
 }

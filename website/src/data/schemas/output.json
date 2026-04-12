@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "id": "output",
+  "name": "OutputBlock",
+  "blockHeader": "output",
+  "description": "OutputBlock wraps the output configuration. Its children are labeled\nsub-blocks whose first label selects the variant (json encoding, tar\narchive, s3 sink, ...). The inner bodies stay unevaluated for the\nrespective integration factories to decode; runner execution does not\nconsume them yet — the runner returns collected results to the caller\nand the CLI is responsible for writing output until per-integration\noutput factories land.",
+  "blocks": [
+    {
+      "name": "encoding",
+      "ref": "encoding",
+      "required": false
+    },
+    {
+      "name": "archive",
+      "ref": "archive",
+      "required": false
+    },
+    {
+      "name": "sink",
+      "ref": "sink",
+      "required": false
+    }
+  ]
+}

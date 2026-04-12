@@ -14,12 +14,26 @@ The Terraform collector uses Terraform providers as data source collectors, allo
 
 ## Example
 
-```yaml
-collectors:
-  - id: aws
-    terraform:
-      provider: hashicorp/aws
-      version: "5.0.0"
-      args:
-        region: us-east-1
+```hcl
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  version  = "5.0.0"
+  region   = "us-east-1"
+}
 ```
+
+### Kubernetes provider
+
+```hcl
+collector "terraform" "k8s" {
+  provider    = "hashicorp/kubernetes"
+  version     = "2.0.0"
+  config_path = env.KUBECONFIG
+}
+```
+
+## Provider registry cache
+
+Terraform providers are downloaded from the Terraform registry on first use and cached locally at `~/.opentofu-data-client/providers`. Subsequent runs reuse the cached binaries, avoiding repeated downloads.
+
+Pin a `version` to ensure reproducible results across environments. When no version is specified, the latest available version is downloaded.

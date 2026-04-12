@@ -77,7 +77,7 @@ Add `--version` flag to CLI and read from Go runtime
 Improve validation error messages to be more actionable:
 
 - "collector 'aws' not found" → suggest similar names
-- Show line numbers for YAML parse errors
+- Show source ranges for HCL parse errors
 - Clear messages for missing required fields
 
 ### [ ] Subprocess collector
@@ -95,9 +95,9 @@ possibilities for collectors.
 
 Create documentation for contributors on how to add a new collector/step:
 
-- Using `NewCollectorFactory[T]` for type-safe collector registration
-- Using `NewStepFactory[C, S]` for steps requiring a specific collector
-- Using `NewStepFactoryWithoutCollector[S]` for standalone steps
+- Defining HCL config structs with `hcl:"..."` tags
+- Implementing `engine.Collector` or `engine.Step` interfaces
+- Registering factories in the registry
 - Example walkthrough of adding a complete collector with steps
 
 ### [ ] Adopt builder pattern for pipeline
@@ -126,32 +126,29 @@ them.
 Add protection against Server-Side Request Forgery when fetching remote job files. Block requests to private IP ranges
 (10.x, 172.16-31.x, 192.168.x, 127.x, link-local, etc.) to prevent access to internal services.
 
-### [ ] Structured value object for static steps
+### [ ] Structured value for static steps
 
-Add `value_obj` field to static steps to allow passing structured data directly as YAML objects, avoiding string
-escaping:
+Support HCL object literals in static steps to allow passing structured data directly, avoiding string escaping:
 
-```yaml
-- id: config
-  static:
-    value_obj:
-      foo: bar
-      nested:
-        key: value
+```hcl
+step "static" "config" {
+  value = {
+    foo = "bar"
+    nested = {
+      key = "value"
+    }
+  }
+}
 ```
 
 ### [ ] YAML parsing for static steps
 
-Add `parse_as: yaml` option for static steps to support YAML files. Auto-detect by `.yaml`/`.yml` extension like JSON.
+Add `parse_as = "yaml"` option for static steps to support YAML files. Auto-detect by `.yaml`/`.yml` extension like JSON.
 
 ### [ ] Glob patterns for static steps
 
-Allow `filepath: "data/*.json"` to load multiple files in a single static step. Each matched file becomes a separate
+Allow `filepath = "data/*.json"` to load multiple files in a single static step. Each matched file becomes a separate
 entry in the result.
-
-### [ ] More template pattern
-
-Evalute goexpr or gotemplate
 
 ### [ ] Integration tests with testcontainers
 

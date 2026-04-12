@@ -1,28 +1,14 @@
 {
-  "name": "TerraformDataSourceStep",
-  "description": "TerraformDataSourceStep is a step that uses a Terraform provider's data source.",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "terraform-datasource-step",
+  "name": "DataSourceStepConfig",
+  "blockHeader": "step \"terraform_datasource\" \"\u003cid\u003e\"",
+  "description": "DataSourceStepConfig is the HCL-level shape of a\n`step \"terraform_datasource\" \"\u003cid\u003e\" { ... }` block.",
+  "blocks": [
     {
-      "name": "Name",
-      "yamlKey": "name",
-      "type": "string",
-      "required": true,
-      "template": false,
-      "description": "Name of the provider data source to use.",
-      "enum": null,
-      "ref": null,
-      "default": null
-    },
-    {
-      "name": "Args",
-      "yamlKey": "args",
-      "type": "map[string]any",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "name": "datasource",
+      "ref": "terraform-datasource",
+      "required": false
     }
   ]
 }

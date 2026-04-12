@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "encoding",
+  "name": "EncodingBlock",
+  "blockHeader": "encoding \"\u003ckind\u003e\"",
+  "description": "EncodingBlock is `encoding \"\u003ckind\u003e\" { ... }`.",
+  "kind": "union",
+  "labelName": "kind",
+  "variants": [
+    {
+      "label": "json",
+      "ref": "encoding-json"
+    }
+  ]
+}

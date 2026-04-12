@@ -1,53 +1,29 @@
 {
-  "name": "HTTPGetStep",
-  "description": "",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "http-get-step",
+  "name": "GetStepConfig",
+  "blockHeader": "step \"http_get\" \"\u003cid\u003e\"",
+  "description": "GetStepConfig is the HCL-level shape of a `step \"http_get\" \"\u003cid\u003e\" { ... }` block.",
+  "attributes": [
     {
-      "name": "Path",
-      "yamlKey": "path",
+      "name": "path",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "Path is the request path.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": true
     },
     {
-      "name": "Headers",
-      "yamlKey": "headers",
-      "type": "map[string]string",
-      "required": false,
-      "template": true,
-      "description": "Headers to include in the request.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "name": "headers",
+      "type": "map(string)",
+      "required": false
     },
     {
-      "name": "Params",
-      "yamlKey": "params",
-      "type": "map[string]string",
-      "required": false,
-      "template": true,
-      "description": "Query parameters to append to the request URL.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "name": "params",
+      "type": "map(string)",
+      "required": false
     },
     {
-      "name": "ResponseType",
-      "yamlKey": "response_type",
+      "name": "response_type",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "ResponseType is the format to parse the response as.",
-      "enum": [
-        "json",
-        "raw"
-      ],
-      "ref": null,
-      "default": null
+      "required": false
     }
   ]
 }

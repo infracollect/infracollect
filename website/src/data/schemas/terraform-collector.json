@@ -1,39 +1,20 @@
 {
-  "name": "TerraformCollector",
-  "description": "",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "terraform-collector",
+  "name": "CollectorConfig",
+  "blockHeader": "collector \"terraform\" \"\u003cid\u003e\"",
+  "description": "CollectorConfig is the HCL-level shape of a `collector \"terraform\" \"\u003cid\u003e\" { ... }` block.\n\n    collector \"terraform\" \"k8s\" {\n      provider    = \"hashicorp/kubernetes\"\n      version     = \"2.0.0\"\n      config_path = env.KUBECONFIG\n    }\n\nAll attributes other than `provider` / `version` are forwarded to the\nprovider as its Configure() arguments, matching the behavior of Terraform's\n`provider \"kubernetes\" { ... }` block.",
+  "attributes": [
     {
-      "name": "Provider",
-      "yamlKey": "provider",
+      "name": "provider",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": true
     },
     {
-      "name": "Version",
-      "yamlKey": "version",
+      "name": "version",
       "type": "string",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": null,
-      "default": null
-    },
-    {
-      "name": "Args",
-      "yamlKey": "args",
-      "type": "map[string]any",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": false
     }
-  ]
+  ],
+  "remain": {}
 }

@@ -4,7 +4,8 @@ description: Reference for archive configuration.
 ---
 
 import PropertyReference from '../../../../components/PropertyReference.astro';
-import archiveSpec from '../../../../data/schemas/archive-spec.json';
+import archive from '../../../../data/schemas/archive.json';
+import archiveTar from '../../../../data/schemas/archive-tar.json';
 
 The archive feature bundles all collected data into a single compressed archive file. This is useful for creating portable snapshots of your infrastructure data.
 
@@ -12,9 +13,16 @@ When enabled, all step outputs are written to the archive, and the archive is th
 
 ## Configuration
 
-<PropertyReference schema={archiveSpec} />
+<PropertyReference
+  schema={archive}
+  schemas={{
+    "archive-tar": archiveTar,
+  }}
+/>
 
-## Compression formats
+### tar
+
+The only supported archive format today. The `compression` attribute controls how the tarball is compressed.
 
 | Compression | Extension | Description |
 |-------------|-----------|-------------|
@@ -22,103 +30,72 @@ When enabled, all step outputs are written to the archive, and the archive is th
 | `zstd` | `.tar.zst` | Better compression ratio and speed |
 | `none` | `.tar` | No compression, fastest |
 
-## Template variables
-
-The `name` field supports these variables:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `$JOB_NAME` | The job's `metadata.name` | `my-job` |
-| `$JOB_DATE_ISO8601` | UTC time in ISO8601 basic format | `20240115T143052Z` |
-| `$JOB_DATE_RFC3339` | UTC time in RFC3339 format | `2024-01-15T14:30:52Z` |
-
-The appropriate file extension is automatically appended based on the format and compression.
-
 ## Examples
 
 ### Basic archive to filesystem
 
-```yaml
-output:
-  archive:
-    format: tar
-    compression: gzip
-  sink:
-    filesystem:
-      path: ./output
+```hcl
+output {
+  archive "tar" {
+    compression = "gzip"
+  }
+  sink "filesystem" {
+    path = "./output"
+  }
+}
 ```
 
-Creates `./output/my-job.tar.gz` containing all step outputs.
+Creates `./output/<job-name>.tar.gz` containing all step outputs.
 
-### Named archive with timestamp
+### Archive with zstd compression to S3
 
-```yaml
-output:
-  archive:
-    format: tar
-    compression: zstd
-    name: $JOB_NAME-$JOB_DATE_ISO8601
-  sink:
-    filesystem:
-      path: ./backups
+```hcl
+output {
+  archive "tar" {
+    compression = "zstd"
+  }
+  sink "s3" {
+    bucket = "my-backups"
+    region = "us-east-1"
+    prefix = "infracollect/"
+  }
+}
 ```
-
-Creates `./backups/my-job-20240115T143052Z.tar.zst`.
-
-### Archive to S3
-
-```yaml
-output:
-  archive:
-    format: tar
-    compression: gzip
-    name: $JOB_NAME-$JOB_DATE_ISO8601
-  sink:
-    s3:
-      bucket: my-backups
-      region: us-east-1
-      prefix: infracollect/
-```
-
-Uploads `infracollect/my-job-20240115T143052Z.tar.gz` to S3.
 
 ### Complete example
 
-```yaml
-kind: CollectJob
-apiVersion: v1
-metadata:
-  name: infrastructure-snapshot
+```hcl
+job {
+  name = "infrastructure-snapshot"
+}
 
-collectors:
-  - id: aws
-    terraform:
-      provider: hashicorp/aws
-      version: "5.0.0"
-      args:
-        region: us-east-1
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  version  = "5.0.0"
+  region   = "us-east-1"
+}
 
-steps:
-  - id: vpcs
-    collector: aws
-    terraform:
-      data_source: aws_vpcs
-  - id: instances
-    collector: aws
-    terraform:
-      data_source: aws_instances
+step "terraform_datasource" "vpcs" {
+  collector = collector.terraform.aws
+  datasource "aws_vpcs" {}
+}
 
-output:
-  encoding:
-    json:
-      indent: "  "
-  archive:
-    format: tar
-    compression: gzip
-    name: $JOB_NAME-$JOB_DATE_ISO8601
-  sink:
-    s3:
-      bucket: infrastructure-snapshots
-      region: us-east-1
-      prefix: daily/
+step "terraform_datasource" "instances" {
+  collector = collector.terraform.aws
+  datasource "aws_instances" {}
+}
+
+output {
+  encoding "json" {
+    indent = "  "
+  }
+  archive "tar" {
+    compression = "gzip"
+  }
+  sink "s3" {
+    bucket = "infrastructure-snapshots"
+    region = "us-east-1"
+    prefix = "daily/"
+  }
+}
 ```

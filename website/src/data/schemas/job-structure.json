@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "job-structure",
+  "name": "job-structure",
+  "kind": "page",
+  "blocks": [
+    {
+      "name": "job",
+      "required": false,
+      "description": "JobBlock carries top-level job metadata. It is optional: when omitted, the\npipeline generates a default name."
+    },
+    {
+      "name": "collector \"\u003ctype\u003e\" \"\u003cname\u003e\"",
+      "required": false,
+      "description": "CollectorBlock is the outer shape of a collector. The inner body stays as\nhcl.Body for integration-specific decoding during Phase 2."
+    },
+    {
+      "name": "step \"\u003ctype\u003e\" \"\u003cname\u003e\"",
+      "required": false,
+      "description": "StepBlock is the outer shape of a step. ForEach and Collector are\nunevaluated expressions; the runner evaluates them at execution time —\nForEach to a cty collection, Collector to a traversal whose first three\nsegments identify a collector node.\n\nNeither ForEach nor Collector is a gohcl-tagged field: gohcl's handling of\noptional hcl.Expression synthesizes a null staticExpr when the attribute is\nabsent, making \"declared vs. not declared\" unobservable. We extract them\nmanually after gohcl decode (see splitStepMeta), matching Terraform's\nconfigs/resource.go pattern."
+    }
+  ]
+}

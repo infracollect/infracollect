@@ -28,54 +28,46 @@ Install infracollect:
 go install github.com/infracollect/infracollect/cmd/infracollect@latest
 ```
 
-Create a `job.yaml` file:
+Create a `job.hcl` file:
 
-```yaml
-apiVersion: v1
-kind: CollectJob
-metadata:
-  name: test
-spec:
-  collectors:
-    - id: kind
-      terraform:
-        provider: hashicorp/kubernetes
-        args:
-          config_path: ~/.kube/config
-          config_context: kind-kind
-  steps:
-    - id: deployments
-      collector: kind
-      terraform_datasource:
-        name: kubernetes_resources
-        args:
-          api_version: apps/v1
-          kind: Deployment
-          namespace: kube-system
+```hcl
+collector "terraform" "kind" {
+  provider    = "hashicorp/kubernetes"
+  config_path    = "~/.kube/config"
+  config_context = "kind-kind"
+}
+
+step "terraform_datasource" "deployments" {
+  collector = collector.terraform.kind
+  datasource "kubernetes_resources" {
+    api_version = "apps/v1"
+    kind        = "Deployment"
+    namespace   = "kube-system"
+  }
+}
 ```
 
 And run the job:
 
 ```bash
-infracollect collect job.yaml
+infracollect collect job.hcl
 ```
 
-Enjoy collecting all your infrastructure data and have fun processing it 🎉!
+Enjoy collecting all your infrastructure data and have fun processing it!
 
 ## Reference
 
 <CardGrid>
   <Card title="Collectors" icon="seti:json">
-    Edit `src/content/docs/index.mdx` to see this page change.
+    Use [Terraform providers](/infracollect/reference/collectors/terraform/) and [HTTP APIs](/infracollect/reference/collectors/http/) to fetch data from any infrastructure source.
   </Card>
-  <Card title="Transformers" icon="list-format">
-    Delete `template: splash` in `src/content/docs/index.mdx` to display a
-    sidebar on this page.
+  <Card title="Steps" icon="list-format">
+    Transform and enrich data with [exec](/infracollect/reference/steps/exec/), [static](/infracollect/reference/steps/static/), and Terraform data source steps.
   </Card>
-  <Card title="Sinks" icon="seti:config">
-    Add Markdown or MDX files to `src/content/docs` to create new pages.
+  <Card title="Output" icon="seti:config">
+    Write results to [stdout, filesystem, or S3](/infracollect/reference/output/sinks/) with optional [archiving](/infracollect/reference/output/archive/).
   </Card>
-  <Card title="Read the docs" icon="open-book">
-    Learn more in [the Starlight Docs](https://starlight.astro.build/).
+  <Card title="Expressions" icon="open-book">
+    Use [HCL expressions](/infracollect/reference/expressions/) for cross-step references, environment variables, and `for_each` iteration.
   </Card>
 </CardGrid>

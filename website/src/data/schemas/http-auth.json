@@ -1,17 +1,15 @@
 {
-  "name": "HTTPAuth",
-  "description": "",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "http-auth",
+  "name": "AuthBlock",
+  "blockHeader": "auth \"\u003ckind\u003e\"",
+  "description": "AuthBlock is a labeled block whose label selects the auth scheme. Today\nonly `basic` is supported; future schemes (bearer, oauth) add new label\ncases without breaking existing configs.",
+  "kind": "union",
+  "labelName": "kind",
+  "variants": [
     {
-      "name": "Basic",
-      "yamlKey": "basic",
-      "type": "HTTPBasicAuth",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": "HTTPBasicAuth",
-      "default": null
+      "label": "basic",
+      "ref": "http-auth-basic"
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "terraform-datasource",
+  "name": "DataSourceBlock",
+  "blockHeader": "datasource \"\u003ckind\u003e\"",
+  "description": "DataSourceBlock is the inner `datasource \"\u003ckind\u003e\" { ... }` block.\nThe kind is a label; the remaining body is held unevaluated so the\nintegration can resolve provider-specific attributes against the runner's\neval context.",
+  "kind": "freeform",
+  "labelName": "kind"
+}

@@ -1,0 +1,111 @@
+---
+title: Expressions
+description: Reference for HCL expressions and variable access in job configurations.
+---
+
+HCL job templates support expressions in attribute values, giving you access to environment variables, step results, and built-in functions.
+
+## Environment variables
+
+Environment variables are accessed via the `env` object:
+
+```hcl
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  region   = env.AWS_REGION
+}
+```
+
+### Passing environment variables
+
+By default, only explicitly passed environment variables are available. If a referenced variable is not set, the job will fail with an error.
+
+```bash
+infracollect collect job.hcl --pass-env AWS_REGION
+```
+
+To pass all environment variables (use with caution in trusted environments):
+
+```bash
+infracollect collect job.hcl --pass-all-env
+```
+
+## Step references
+
+Steps can reference results from earlier steps using traversal syntax. Collectors are referenced as `collector.<type>.<name>`, and step results as `step.<type>.<name>.result`:
+
+```hcl
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  region   = env.AWS_REGION
+}
+
+step "terraform_datasource" "instances" {
+  collector = collector.terraform.aws
+  datasource "aws_instances" {}
+}
+
+step "exec" "details" {
+  program = ["aws", "ec2", "describe-instances",
+    "--instance-ids", step.terraform_datasource.instances.result[0].id]
+  format = "json"
+}
+```
+
+## for_each
+
+The `for_each` meta-attribute fans out a step over a collection. Inside the step body, `each.key` and `each.value` are available:
+
+```hcl
+step "terraform_datasource" "vpcs" {
+  collector = collector.terraform.aws
+  datasource "aws_vpcs" {}
+}
+
+step "exec" "describe-vpc" {
+  for_each = step.terraform_datasource.vpcs.result
+  program  = ["aws", "ec2", "describe-vpcs", "--vpc-ids", each.value.id]
+  format   = "json"
+}
+```
+
+## Example
+
+A complete job that discovers AWS VPCs via the Terraform provider, then enriches each one with a detailed description from the AWS CLI:
+
+```hcl
+job {
+  name = "aws-vpc-inventory"
+}
+
+collector "terraform" "aws" {
+  provider = "hashicorp/aws"
+  region   = env.AWS_REGION
+}
+
+step "terraform_datasource" "vpcs" {
+  collector = collector.terraform.aws
+  datasource "aws_vpcs" {}
+}
+
+step "exec" "describe-vpcs" {
+  for_each = step.terraform_datasource.vpcs.result
+  program  = ["aws", "ec2", "describe-vpcs", "--vpc-ids", each.value.id]
+  format   = "json"
+}
+
+output {
+  archive "tar" {
+    compression = "gzip"
+  }
+  sink "filesystem" {
+    path = "./output"
+  }
+}
+```
+
+Run with:
+
+```bash
+infracollect collect job.hcl --pass-env AWS_REGION
+```

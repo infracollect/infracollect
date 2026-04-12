@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "sink",
+  "name": "SinkBlock",
+  "blockHeader": "sink \"\u003ckind\u003e\"",
+  "description": "SinkBlock is `sink \"\u003ckind\u003e\" { ... }`. The nested `credentials {}` block\nis unlabeled because credentials are not a discriminated union — every\nsink that takes credentials takes the same shape.",
+  "kind": "union",
+  "labelName": "kind",
+  "variants": [
+    {
+      "label": "filesystem",
+      "ref": "sink-filesystem"
+    },
+    {
+      "label": "s3",
+      "ref": "sink-s3"
+    },
+    {
+      "label": "stderr"
+    },
+    {
+      "label": "stdout"
+    }
+  ]
+}

@@ -1,61 +1,36 @@
 {
-  "name": "HTTPCollector",
-  "description": "",
-  "fields": [
+  "schemaVersion": 2,
+  "id": "http-collector",
+  "name": "CollectorConfig",
+  "blockHeader": "collector \"http\" \"\u003cid\u003e\"",
+  "description": "CollectorConfig is the HCL-level shape of a `collector \"http\" \"\u003cid\u003e\" { ... }` block.\n\n    collector \"http\" \"github\" {\n      base_url = \"https://api.github.com\"\n      timeout  = 30\n      headers = {\n        X-GitHub-Api-Version = \"2022-11-28\"\n      }\n      auth \"basic\" {\n        username = env.GITHUB_USER\n        password = env.GITHUB_TOKEN\n      }\n    }",
+  "attributes": [
     {
-      "name": "BaseURL",
-      "yamlKey": "base_url",
+      "name": "base_url",
       "type": "string",
-      "required": false,
-      "template": true,
-      "description": "BaseURL is the base URL for the HTTP collector, such as \"https://api.example.com\".",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": true
     },
     {
-      "name": "Headers",
-      "yamlKey": "headers",
-      "type": "map[string]string",
-      "required": false,
-      "template": true,
-      "description": "Headers to include in all requests.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "name": "headers",
+      "type": "map(string)",
+      "required": false
     },
     {
-      "name": "Auth",
-      "yamlKey": "auth",
-      "type": "HTTPAuth",
-      "required": false,
-      "template": false,
-      "description": "",
-      "enum": null,
-      "ref": "HTTPAuth",
-      "default": null
+      "name": "timeout",
+      "type": "number",
+      "required": false
     },
     {
-      "name": "Timeout",
-      "yamlKey": "timeout",
-      "type": "int",
-      "required": false,
-      "template": false,
-      "description": "Timeout is the request timeout in seconds.",
-      "enum": null,
-      "ref": null,
-      "default": null
-    },
-    {
-      "name": "Insecure",
-      "yamlKey": "insecure",
+      "name": "insecure",
       "type": "bool",
-      "required": false,
-      "template": false,
-      "description": "Insecure skips TLS certificate verification.",
-      "enum": null,
-      "ref": null,
-      "default": null
+      "required": false
+    }
+  ],
+  "blocks": [
+    {
+      "name": "auth",
+      "ref": "http-auth",
+      "required": false
     }
   ]
 }
