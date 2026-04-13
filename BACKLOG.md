@@ -143,7 +143,8 @@ step "static" "config" {
 
 ### [ ] YAML parsing for static steps
 
-Add `parse_as = "yaml"` option for static steps to support YAML files. Auto-detect by `.yaml`/`.yml` extension like JSON.
+Add `parse_as = "yaml"` option for static steps to support YAML files. Auto-detect by `.yaml`/ `.yml` extension like
+JSON.
 
 ### [ ] Glob patterns for static steps
 
