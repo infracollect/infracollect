@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestRunner_Output_ExplicitStdout(t *testing.T) {
@@ -175,6 +176,198 @@ output {
 			_, err := runSilently(t, newRunner(t, []byte(tc.src), "err.hcl", stub.reg))
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tc.wantMsg)
+		})
+	}
+}
+
+// --- output steps filter tests -----------------------------------------------
+
+func TestRunner_Output_StepsFilter(t *testing.T) {
+	stub := newStubRegistry(t)
+	dir := t.TempDir()
+
+	src := []byte(fmt.Sprintf(`
+step "stub_nocoll" "alpha" {
+  greeting = "hello"
+}
+
+step "stub_nocoll" "beta" {
+  greeting = "world"
+}
+
+output {
+  steps = [step.stub_nocoll.alpha]
+  sink "filesystem" {
+    path = %q
+  }
+}
+`, dir))
+
+	_, err := runSilently(t, newRunner(t, src, "filter.hcl", stub.reg))
+	require.NoError(t, err)
+
+	// alpha should be written
+	data, err := os.ReadFile(filepath.Join(dir, "stub_nocoll", "alpha.json"))
+	require.NoError(t, err, "expected filtered step to be written")
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.Equal(t, "hello", decoded["greeting"])
+
+	// beta should NOT be written
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "beta.json"))
+	assert.ErrorIs(t, err, os.ErrNotExist, "excluded step should not be written")
+}
+
+func TestRunner_Output_StepsFilterMultiple(t *testing.T) {
+	stub := newStubRegistry(t)
+	dir := t.TempDir()
+
+	src := []byte(fmt.Sprintf(`
+step "stub_nocoll" "a" {
+  v = "1"
+}
+
+step "stub_nocoll" "b" {
+  v = "2"
+}
+
+step "stub_nocoll" "c" {
+  v = "3"
+}
+
+output {
+  steps = [step.stub_nocoll.a, step.stub_nocoll.c]
+  sink "filesystem" {
+    path = %q
+  }
+}
+`, dir))
+
+	_, err := runSilently(t, newRunner(t, src, "multi.hcl", stub.reg))
+	require.NoError(t, err)
+
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "a.json"))
+	assert.NoError(t, err, "step a should be written")
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "b.json"))
+	assert.ErrorIs(t, err, os.ErrNotExist, "step b should not be written")
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "c.json"))
+	assert.NoError(t, err, "step c should be written")
+}
+
+func TestRunner_Output_NoStepsMeansAll(t *testing.T) {
+	stub := newStubRegistry(t)
+	dir := t.TempDir()
+
+	src := []byte(fmt.Sprintf(`
+step "stub_nocoll" "a" {
+  v = "1"
+}
+
+step "stub_nocoll" "b" {
+  v = "2"
+}
+
+output {
+  sink "filesystem" {
+    path = %q
+  }
+}
+`, dir))
+
+	_, err := runSilently(t, newRunner(t, src, "all.hcl", stub.reg))
+	require.NoError(t, err)
+
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "a.json"))
+	assert.NoError(t, err, "step a should be written")
+	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "b.json"))
+	assert.NoError(t, err, "step b should be written")
+}
+
+func TestRunner_Output_StepsFilterErrors(t *testing.T) {
+	cases := []struct {
+		name    string
+		src     string
+		wantMsg string
+	}{
+		{
+			name: "empty steps list",
+			src: `
+step "stub_nocoll" "only" {
+  greeting = "hi"
+}
+
+output {
+  steps = []
+  sink "stdout" {}
+}`,
+			wantMsg: "Empty output steps",
+		},
+		{
+			name: "unknown step reference",
+			src: `
+step "stub_nocoll" "only" {
+  greeting = "hi"
+}
+
+output {
+  steps = [step.stub_nocoll.nonexistent]
+  sink "stdout" {}
+}`,
+			wantMsg: "step.stub_nocoll.nonexistent is not declared",
+		},
+		{
+			name: "string instead of reference",
+			src: `
+step "stub_nocoll" "only" {
+  greeting = "hi"
+}
+
+output {
+  steps = ["stub_nocoll/only"]
+  sink "stdout" {}
+}`,
+			wantMsg: "Invalid step reference",
+		},
+		{
+			name: "collector reference instead of step",
+			src: `
+collector "stub" "c" {}
+
+step "stub_step" "only" {
+  collector = collector.stub.c
+  greeting  = "hi"
+}
+
+output {
+  steps = [collector.stub.c]
+  sink "stdout" {}
+}`,
+			wantMsg: "Must start with the `step` namespace",
+		},
+		{
+			name: "step reference with extra segments",
+			src: `
+step "stub_nocoll" "only" {
+  greeting = "hi"
+}
+
+output {
+  steps = [step.stub_nocoll.only.data]
+  sink "stdout" {}
+}`,
+			wantMsg: "Must be exactly `step.<type>.<id>`",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := newStubRegistry(t)
+
+			tmpl, diags := ParseJobTemplate([]byte(tc.src), "err.hcl")
+			require.False(t, diags.HasErrors(), "parse: %s", diags.Error())
+
+			_, diags = New(zap.NewNop(), tmpl, stub.reg, nil)
+			require.True(t, diags.HasErrors(), "expected pipeline build error")
+			assert.Contains(t, diags.Error(), tc.wantMsg)
 		})
 	}
 }

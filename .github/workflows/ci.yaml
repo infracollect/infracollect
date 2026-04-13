@@ -27,6 +27,7 @@ jobs:
       - uses: jdx/mise-action@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          install_args: "--locked"
         env:
           MISE_ENV: ci
 

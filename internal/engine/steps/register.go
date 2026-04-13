@@ -47,11 +47,7 @@ func newStaticStep(
 	_ *hcl.EvalContext,
 	cfg StaticHCLConfig,
 ) (engine.Step, error) {
-	return NewStaticStep(id, StaticStepConfig{
-		Filepath: cfg.Filepath,
-		Value:    cfg.Value,
-		ParseAs:  cfg.ParseAs,
-	})
+	return NewStaticStep(id, StaticStepConfig(cfg))
 }
 
 func newExecStep(

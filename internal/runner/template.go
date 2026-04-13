@@ -85,6 +85,11 @@ type OutputBlock struct {
 	Encoding *EncodingBlock `hcl:"encoding,block"`
 	Archive  *ArchiveBlock  `hcl:"archive,block"`
 	Sink     *SinkBlock     `hcl:"sink,block"`
+	Body     hcl.Body       `hcl:",remain"`
+
+	// Populated by splitOutputMeta when the output body contains a `steps`
+	// attribute. Nil means "include all steps in the output".
+	Steps hcl.Expression
 }
 
 // EncodingBlock is `encoding "<kind>" { ... }`.
@@ -156,6 +161,7 @@ func ParseJobTemplate(data []byte, filename string) (*JobTemplate, hcl.Diagnosti
 	// distinguish an absent optional hcl.Expression from a present null
 	// expression.
 	diags = append(diags, splitStepMeta(&tmpl)...)
+	diags = append(diags, splitOutputMeta(&tmpl)...)
 
 	diags = append(diags, validateUniqueLabels(&tmpl)...)
 
@@ -226,6 +232,28 @@ func splitStepMeta(tmpl *JobTemplate) hcl.Diagnostics {
 		}
 		s.Body = remain
 	}
+	return diags
+}
+
+// splitOutputMeta extracts the `steps` attribute from the output block's
+// remaining body into a dedicated field. Unknown attributes left in the
+// body after extraction are diagnosed as errors.
+func splitOutputMeta(tmpl *JobTemplate) hcl.Diagnostics {
+	if tmpl.Output == nil || tmpl.Output.Body == nil {
+		return nil
+	}
+	schema := &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{Name: "steps", Required: false},
+		},
+	}
+	content, remain, diags := tmpl.Output.Body.PartialContent(schema)
+	if attr, ok := content.Attributes["steps"]; ok {
+		tmpl.Output.Steps = attr.Expr
+	}
+	// Diagnose any remaining unknown attributes.
+	_, rd := remain.Content(&hcl.BodySchema{})
+	diags = append(diags, rd...)
 	return diags
 }
 

@@ -97,10 +97,5 @@ func newGetStep(
 	_ *hcl.EvalContext,
 	cfg GetStepConfig,
 ) (engine.Step, error) {
-	return NewGetStep(collector, GetConfig{
-		Path:         cfg.Path,
-		Headers:      cfg.Headers,
-		Params:       cfg.Params,
-		ResponseType: cfg.ResponseType,
-	})
+	return NewGetStep(collector, GetConfig(cfg))
 }

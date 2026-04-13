@@ -112,7 +112,8 @@ func (r *Runner) Run(ctx context.Context) (map[string]engine.Result, error) {
 // writeResults encodes every collected result through the configured
 // encoder and streams it to the configured sink. Keys are sorted so
 // concatenated output is reproducible despite Go's randomized map
-// iteration.
+// iteration. When the output block declares a `steps` filter, only
+// the referenced steps are written.
 func (r *Runner) writeResults(ctx context.Context) error {
 	encoder, sink, err := buildOutputPipeline(ctx, r.tmpl.Output, r.baseCtx, r.tmpl.JobName())
 	if err != nil {
@@ -124,9 +125,16 @@ func (r *Runner) writeResults(ctx context.Context) error {
 		}
 	}()
 
+	allowed := r.pipeline.OutputSteps()
+
 	ext := encoder.FileExtension()
 	keys := make([]string, 0, len(r.raw))
 	for k := range r.raw {
+		if allowed != nil {
+			if _, ok := allowed[k]; !ok {
+				continue
+			}
+		}
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -166,7 +174,7 @@ func (r *Runner) runCollector(ctx context.Context, node Node, meta *NodeMeta) er
 		return fmt.Errorf("failed to start collector %s/%s: %w", node.Type, node.ID, err)
 	}
 
-	r.collectors[collectorKey(node.Type, node.ID)] = collector
+	r.collectors[nodeKey(node.Type, node.ID)] = collector
 	if r.collectorByType[node.Type] == nil {
 		r.collectorByType[node.Type] = make(map[string]cty.Value)
 	}
@@ -207,7 +215,7 @@ func (r *Runner) runStep(ctx context.Context, node Node, meta *NodeMeta) error {
 		r.stepByType[node.Type] = make(map[string]cty.Value)
 	}
 	r.stepByType[node.Type][node.ID] = resultCty
-	r.raw[collectorKey(node.Type, node.ID)] = result
+	r.raw[nodeKey(node.Type, node.ID)] = result
 
 	r.logger.Info("step resolved",
 		zap.String("type", node.Type),
@@ -285,7 +293,7 @@ func (r *Runner) runCollection(ctx context.Context, node Node, meta *NodeMeta) e
 		r.stepByType[node.Type] = make(map[string]cty.Value)
 	}
 	r.stepByType[node.Type][node.ID] = aggregated
-	r.raw[collectorKey(node.Type, node.ID)] = engine.Result{Data: iterRaw}
+	r.raw[nodeKey(node.Type, node.ID)] = engine.Result{Data: iterRaw}
 
 	r.logger.Info("collection resolved",
 		zap.String("type", node.Type),
@@ -300,7 +308,7 @@ func (r *Runner) resolveStepCollector(node Node, meta *NodeMeta) (engine.Collect
 		// Collector-less step kinds (static, exec).
 		return nil, nil
 	}
-	key := collectorKey(meta.CollectorAddr.Type, meta.CollectorAddr.Name)
+	key := nodeKey(meta.CollectorAddr.Type, meta.CollectorAddr.Name)
 	c, ok := r.collectors[key]
 	if !ok {
 		return nil, fmt.Errorf("step %s/%s references unknown collector %s", node.Type, node.ID, key)
@@ -381,7 +389,7 @@ func (r *Runner) Pipeline() *Pipeline { return r.pipeline }
 
 func (r *Runner) EvalContext() *hcl.EvalContext { return r.baseCtx }
 
-func collectorKey(typ, id string) string { return typ + "/" + id }
+func nodeKey(typ, id string) string { return typ + "/" + id }
 
 // validateForEachValue enforces the same rule Terraform applies: for_each
 // must evaluate to a map, an object, or a set of strings. Tuples and lists

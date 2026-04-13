@@ -22,6 +22,10 @@ type CollectorAddr struct {
 type Pipeline struct {
 	dag  *DirectedAcyclicGraph
 	meta map[Node]*NodeMeta
+
+	// outputSteps is the set of "type/id" keys that the output block's
+	// `steps` attribute selected. nil means "all steps".
+	outputSteps map[string]struct{}
 }
 
 // NodeMeta is pipeline-local so the DAG core stays comparable.
@@ -39,6 +43,8 @@ func (p *Pipeline) Meta(n Node) (*NodeMeta, bool) {
 	m, ok := p.meta[n]
 	return m, ok
 }
+
+func (p *Pipeline) OutputSteps() map[string]struct{} { return p.outputSteps }
 
 // BuildPipeline extracts references via HCL's native Variables() walk and
 // builds a DAG with one node per collector and one per step. Steps that
@@ -217,6 +223,15 @@ func BuildPipeline(logger *zap.Logger, tmpl *JobTemplate, registry *engine.Regis
 		return nil, diags
 	}
 
+	// Validate the output.steps filter against the known step nodes.
+	if tmpl.Output != nil && tmpl.Output.Steps != nil {
+		od := p.validateOutputSteps(tmpl.Output.Steps)
+		diags = append(diags, od...)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+	}
+
 	return p, diags
 }
 
@@ -286,57 +301,121 @@ func (p *Pipeline) resolveRefNode(ref Reference) (Node, bool) {
 	return Node{}, false
 }
 
-// parseCollectorBinding validates a step's `collector = ...` expression. Only
-// the exact traversal shape `collector.<type>.<id>` is accepted; conditionals,
-// function calls, interpolations, arithmetic, and concatenation are all
-// rejected with a source-ranged diagnostic.
-func parseCollectorBinding(expr hcl.Expression) (CollectorAddr, hcl.Traversal, hcl.Diagnostics) {
+// parseTraversalRef validates that expr is a direct 3-segment traversal of
+// the form <expectedRoot>.<type>.<id>. Returns the type and id strings, the
+// raw traversal, and any diagnostics. The summary is used in error messages
+// (e.g. "Invalid collector binding").
+func parseTraversalRef(expr hcl.Expression, expectedRoot, summary string) (typeName, idName string, trav hcl.Traversal, diags hcl.Diagnostics) {
 	invalid := func(detail string) hcl.Diagnostics {
-		return hcl.Diagnostics{&hcl.Diagnostic{
+		return hcl.Diagnostics{{
 			Severity: hcl.DiagError,
-			Summary:  "Invalid collector binding",
+			Summary:  summary,
 			Detail:   detail,
 			Subject:  expr.Range().Ptr(),
 		}}
 	}
 
-	trav, ok := expr.(*hclsyntax.ScopeTraversalExpr)
+	scopeTrav, ok := expr.(*hclsyntax.ScopeTraversalExpr)
 	if !ok {
-		return CollectorAddr{}, nil, invalid(
-			"The `collector` attribute must be a direct traversal of the form " +
-				"`collector.<type>.<id>`. Conditionals, function calls, string " +
-				"interpolations, arithmetic, and concatenation are not permitted.",
-		)
+		return "", "", nil, invalid(fmt.Sprintf(
+			"Must be a direct traversal of the form `%s.<type>.<id>`. "+
+				"Conditionals, function calls, string interpolations, "+
+				"arithmetic, and concatenation are not permitted.",
+			expectedRoot,
+		))
 	}
 
-	t := trav.Traversal
+	t := scopeTrav.Traversal
 	if len(t) != 3 {
-		return CollectorAddr{}, nil, invalid(fmt.Sprintf(
-			"The `collector` attribute must be exactly `collector.<type>.<id>`; "+
-				"got a traversal of %d segments.",
-			len(t),
+		return "", "", nil, invalid(fmt.Sprintf(
+			"Must be exactly `%s.<type>.<id>`; got %d segments.",
+			expectedRoot, len(t),
 		))
 	}
 
 	root, ok := t[0].(hcl.TraverseRoot)
-	if !ok || root.Name != RootCollector {
-		return CollectorAddr{}, nil, invalid(
-			"The `collector` attribute must start with the `collector` namespace.",
-		)
+	if !ok || root.Name != expectedRoot {
+		return "", "", nil, invalid(fmt.Sprintf(
+			"Must start with the `%s` namespace.", expectedRoot,
+		))
 	}
 	typeAttr, ok := t[1].(hcl.TraverseAttr)
 	if !ok {
-		return CollectorAddr{}, nil, invalid(
-			"Expected an attribute (collector type) after `collector.`.",
-		)
+		return "", "", nil, invalid(fmt.Sprintf(
+			"Expected a type after `%s.`.", expectedRoot,
+		))
 	}
 	nameAttr, ok := t[2].(hcl.TraverseAttr)
 	if !ok {
-		return CollectorAddr{}, nil, invalid(fmt.Sprintf(
-			"Expected an attribute (collector name) after `collector.%s.`.",
-			typeAttr.Name,
+		return "", "", nil, invalid(fmt.Sprintf(
+			"Expected an id after `%s.%s.`.", expectedRoot, typeAttr.Name,
 		))
 	}
 
-	return CollectorAddr{Type: typeAttr.Name, Name: nameAttr.Name}, t, nil
+	return typeAttr.Name, nameAttr.Name, t, nil
+}
+
+// parseCollectorBinding validates a step's `collector = ...` expression. Only
+// the exact traversal shape `collector.<type>.<id>` is accepted.
+func parseCollectorBinding(expr hcl.Expression) (CollectorAddr, hcl.Traversal, hcl.Diagnostics) {
+	typeName, idName, trav, diags := parseTraversalRef(expr, RootCollector, "Invalid collector binding")
+	if diags.HasErrors() {
+		return CollectorAddr{}, nil, diags
+	}
+	return CollectorAddr{Type: typeName, Name: idName}, trav, nil
+}
+
+// validateOutputSteps parses and validates the output.steps expression
+// against the known step nodes in the pipeline. Each element must be a
+// direct traversal of the form step.<type>.<id>. An empty list is
+// rejected. On success the validated keys are stored in p.outputSteps.
+func (p *Pipeline) validateOutputSteps(expr hcl.Expression) hcl.Diagnostics {
+	tuple, ok := expr.(*hclsyntax.TupleConsExpr)
+	if !ok {
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid output steps",
+			Detail:   "The `steps` attribute must be a list of step references (step.<type>.<id>).",
+			Subject:  expr.Range().Ptr(),
+		}}
+	}
+	if len(tuple.Exprs) == 0 {
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Empty output steps",
+			Detail:   "The `steps` list must not be empty; omit the attribute to include all steps.",
+			Subject:  expr.Range().Ptr(),
+		}}
+	}
+
+	allowed := make(map[string]struct{}, len(tuple.Exprs))
+	var diags hcl.Diagnostics
+
+	for _, elem := range tuple.Exprs {
+		typeName, idName, _, ed := parseTraversalRef(elem, RootStep, "Invalid step reference")
+		if ed.HasErrors() {
+			diags = append(diags, ed...)
+			continue
+		}
+
+		if _, found := p.resolveRefNode(Reference{Root: RootStep, Type: typeName, Name: idName}); !found {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Reference to unknown step",
+				Detail: fmt.Sprintf(
+					"step.%s.%s is not declared in this job.",
+					typeName, idName,
+				),
+				Subject: elem.Range().Ptr(),
+			})
+			continue
+		}
+
+		allowed[nodeKey(typeName, idName)] = struct{}{}
+	}
+
+	if !diags.HasErrors() {
+		p.outputSteps = allowed
+	}
+	return diags
 }

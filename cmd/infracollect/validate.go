@@ -57,7 +57,7 @@ var validateCommand = &cli.Command{
 			return fmt.Errorf("job file '%s' is invalid", jobFilename)
 		}
 
-		fmt.Fprintf(os.Stdout, "OK %s (job: %s)\n", jobFilename, tmpl.JobName())
+		_, _ = fmt.Fprintf(os.Stdout, "OK %s (job: %s)\n", jobFilename, tmpl.JobName())
 		return nil
 	},
 }

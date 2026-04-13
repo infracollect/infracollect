@@ -20,5 +20,6 @@
       "ref": "sink",
       "required": false
     }
-  ]
+  ],
+  "remain": {}
 }

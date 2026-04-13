@@ -133,10 +133,10 @@ func silenceStdout(t *testing.T, fn func()) {
 	}()
 
 	defer func() {
-		w.Close()
+		_ = w.Close()
 		<-done
 		os.Stdout = orig
-		null.Close()
+		_ = null.Close()
 	}()
 
 	fn()

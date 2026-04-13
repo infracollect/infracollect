@@ -84,10 +84,12 @@ step "exec" "pods" {
 
 ## output
 
-The optional `output` block configures how collected data is encoded, archived, and written. It contains up to three labeled sub-blocks:
+The optional `output` block configures how collected data is encoded, archived, and written. It contains up to three labeled sub-blocks and an optional `steps` attribute:
 
 ```hcl
 output {
+  steps = [step.<type>.<id>, ...]
+
   encoding "<kind>" {
     # Encoding-specific attributes...
   }
@@ -100,9 +102,19 @@ output {
 }
 ```
 
+### Attributes
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `steps` | list of step references | No | Filter which steps are included in the output. When omitted, all step results are written. Must not be empty. |
+
+Each element in `steps` must be a direct step reference of the form `step.<type>.<id>`. This is useful when some steps exist only to feed data to downstream steps and should not appear in the final output.
+
 See the [Archive](/reference/output/archive/) and [Sinks](/reference/output/sinks/) reference pages for details.
 
-### Example
+### Examples
+
+#### All steps (default)
 
 ```hcl
 output {
@@ -116,6 +128,29 @@ output {
     bucket = "my-bucket"
     region = "us-east-1"
     prefix = "daily/"
+  }
+}
+```
+
+#### Filtered steps
+
+```hcl
+step "exec" "namespaces" {
+  program = ["kubectl", "get", "namespaces", "-o", "json"]
+  format  = "json"
+}
+
+step "exec" "pods" {
+  for_each = step.exec.namespaces.data.items
+  program  = ["kubectl", "get", "pods", "-n", each.value.metadata.name, "-o", "json"]
+  format   = "json"
+}
+
+output {
+  # Only include the pods — namespaces was an intermediate step.
+  steps = [step.exec.pods]
+  sink "filesystem" {
+    path = "./output"
   }
 }
 ```

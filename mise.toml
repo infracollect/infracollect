@@ -1,12 +1,12 @@
 [tools]
-hk = "latest"
-pkl = "latest"
+hk = "1.42.0"
+pkl = "0.31.1"
 golangci-lint = "v2.8.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
-prettier = "latest"
-rumdl = "latest"
+prettier = "3.8.2"
+rumdl = "0.1.70"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
-actionlint = "latest"
+actionlint = "1.7.12"
 
 [tasks.pre-commit]
 run = "hk run pre-commit"
