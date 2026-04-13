@@ -10,7 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestNewExecStep_Validation(t *testing.T) {
@@ -52,7 +52,7 @@ func TestNewExecStep_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewExecStep("test", zap.NewNop(), tt.cfg)
+			_, err := NewExecStep("test", zaptest.NewLogger(t), tt.cfg)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
@@ -65,55 +65,60 @@ func TestNewExecStep_Validation(t *testing.T) {
 	}
 }
 
-func TestExecStep_JSONOutput(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program: []string{"sh", "-c", `echo '{"key": "value", "number": 42}'`},
-		Format:  lo.ToPtr("json"),
-	})
-	require.NoError(t, err)
+func TestExecStep_OutputFormats(t *testing.T) {
+	rawOutput := "raw output data"
+	rawEncoded := base64.StdEncoding.EncodeToString([]byte(rawOutput))
 
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
+	tests := []struct {
+		name       string
+		cfg        ExecStepConfig
+		wantData   any
+		wantFormat string
+	}{
+		{
+			name: "json format",
+			cfg: ExecStepConfig{
+				Program: []string{"sh", "-c", `echo '{"key": "value", "number": 42}'`},
+				Format:  lo.ToPtr("json"),
+			},
+			wantData:   map[string]any{"key": "value", "number": float64(42)},
+			wantFormat: "json",
+		},
+		{
+			name: "raw format",
+			cfg: ExecStepConfig{
+				Program: []string{"sh", "-c", "printf '%s' 'raw output data'"},
+				Format:  lo.ToPtr("raw"),
+			},
+			wantData:   map[string]any{"output": rawEncoded},
+			wantFormat: "raw",
+		},
+		{
+			name: "default format is json",
+			cfg: ExecStepConfig{
+				Program: []string{"sh", "-c", `echo '{"default": true}'`},
+			},
+			wantData:   map[string]any{"default": true},
+			wantFormat: "json",
+		},
+	}
 
-	expected := map[string]any{"key": "value", "number": float64(42)}
-	assert.Equal(t, expected, result.Data)
-	assert.Equal(t, "json", result.Meta["exec_format"])
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			step, err := NewExecStep("test", zaptest.NewLogger(t), tt.cfg)
+			require.NoError(t, err)
 
-func TestExecStep_RawOutput(t *testing.T) {
-	output := "raw output data"
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program: []string{"sh", "-c", "printf '%s' 'raw output data'"},
-		Format:  lo.ToPtr("raw"),
-	})
-	require.NoError(t, err)
+			result, err := step.Resolve(t.Context())
+			require.NoError(t, err)
 
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
-
-	expectedEncoded := base64.StdEncoding.EncodeToString([]byte(output))
-	data, ok := result.Data.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, expectedEncoded, data["output"])
-	assert.Equal(t, "raw", result.Meta["exec_format"])
-}
-
-func TestExecStep_DefaultFormat(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program: []string{"sh", "-c", `echo '{"default": true}'`},
-	})
-	require.NoError(t, err)
-
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
-
-	expected := map[string]any{"default": true}
-	assert.Equal(t, expected, result.Data)
-	assert.Equal(t, "json", result.Meta["exec_format"])
+			assert.Equal(t, tt.wantData, result.Data)
+			assert.Equal(t, tt.wantFormat, result.Meta["exec_format"])
+		})
+	}
 }
 
 func TestExecStep_Input(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", "cat"},
 		Input:   map[string]any{"hello": "world", "count": 42},
 		Format:  lo.ToPtr("json"),
@@ -128,7 +133,7 @@ func TestExecStep_Input(t *testing.T) {
 }
 
 func TestExecStep_NonZeroExit(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", "echo 'error message' >&2; exit 1"},
 	})
 	require.NoError(t, err)
@@ -140,7 +145,7 @@ func TestExecStep_NonZeroExit(t *testing.T) {
 }
 
 func TestExecStep_Timeout(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", "sleep 10"},
 		Timeout: lo.ToPtr("100ms"),
 	})
@@ -152,7 +157,7 @@ func TestExecStep_Timeout(t *testing.T) {
 }
 
 func TestExecStep_Environment(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", `echo "{\"test_var\": \"$TEST_VAR\", \"home_set\": \"$(test -n \"$HOME\" && echo true || echo false)\"}"`},
 		Env:     map[string]string{"TEST_VAR": "custom_value"},
 		Format:  lo.ToPtr("json"),
@@ -168,52 +173,52 @@ func TestExecStep_Environment(t *testing.T) {
 	assert.Equal(t, "true", data["home_set"])
 }
 
-func TestExecStep_AllowedEnvFiltering(t *testing.T) {
-	// Set up two env vars: one secret and one allowed
+func TestExecStep_EnvFiltering(t *testing.T) {
 	require.NoError(t, os.Setenv("SECRET_VAR", "topsecret"))
 	require.NoError(t, os.Setenv("ALLOWED_VAR", "allowed"))
-	defer func() {
+	t.Cleanup(func() {
 		_ = os.Unsetenv("SECRET_VAR")
 		_ = os.Unsetenv("ALLOWED_VAR")
-	}()
-
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program:    []string{"sh", "-c", `echo "{\"secret\": \"$SECRET_VAR\", \"allowed\": \"$ALLOWED_VAR\"}"`},
-		Format:     lo.ToPtr("json"),
-		AllowedEnv: []string{"ALLOWED_VAR"},
 	})
-	require.NoError(t, err)
 
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
+	tests := []struct {
+		name       string
+		allowedEnv []string
+		wantSecret string
+		wantAllow  string
+	}{
+		{
+			name:       "explicit allowlist passes only listed vars",
+			allowedEnv: []string{"ALLOWED_VAR"},
+			wantSecret: "",
+			wantAllow:  "allowed",
+		},
+		{
+			name:       "nil allowlist blocks non-safe vars",
+			allowedEnv: nil,
+			wantSecret: "",
+			wantAllow:  "",
+		},
+	}
 
-	data, ok := result.Data.(map[string]any)
-	require.True(t, ok)
-	// SECRET_VAR should be empty (not passed through), ALLOWED_VAR should be present
-	assert.Equal(t, "", data["secret"])
-	assert.Equal(t, "allowed", data["allowed"])
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
+				Program:    []string{"sh", "-c", `echo "{\"secret\": \"$SECRET_VAR\", \"allowed\": \"$ALLOWED_VAR\"}"`},
+				Format:     lo.ToPtr("json"),
+				AllowedEnv: tt.allowedEnv,
+			})
+			require.NoError(t, err)
 
-func TestExecStep_AllowedEnvEmptyOnlyPassesSafeVars(t *testing.T) {
-	// When AllowedEnv is empty/nil, only safe vars (PATH, HOME, etc.) are passed.
-	// This ensures security by default - users must explicitly allow env vars.
-	require.NoError(t, os.Setenv("SECRET_VAR", "topsecret"))
-	defer func() { _ = os.Unsetenv("SECRET_VAR") }()
+			result, err := step.Resolve(t.Context())
+			require.NoError(t, err)
 
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program: []string{"sh", "-c", `echo "{\"secret\": \"$SECRET_VAR\"}"`},
-		Format:  lo.ToPtr("json"),
-		// AllowedEnv is nil/unset here - SECRET_VAR should NOT be passed
-	})
-	require.NoError(t, err)
-
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
-
-	data, ok := result.Data.(map[string]any)
-	require.True(t, ok)
-	// SECRET_VAR is not in safeEnvVars, so it should be empty
-	assert.Equal(t, "", data["secret"])
+			data, ok := result.Data.(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantSecret, data["secret"])
+			assert.Equal(t, tt.wantAllow, data["allowed"])
+		})
+	}
 }
 
 func TestExecStep_WorkingDirectory(t *testing.T) {
@@ -222,49 +227,55 @@ func TestExecStep_WorkingDirectory(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
-
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program:    []string{"sh", "-c", `echo "{\"file_exists\": \"$(test -f test.txt && echo true || echo false)\"}"`},
-		WorkingDir: lo.ToPtr(tmpDir),
-		Format:     lo.ToPtr("json"),
-	})
-	require.NoError(t, err)
-
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
-
-	data, ok := result.Data.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "true", data["file_exists"])
-}
-
-func TestExecStep_RelativeWorkingDirectory(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("skipping on Windows")
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("test content"), 0644))
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
-		Program:    []string{"sh", "-c", `echo "{\"pwd\": \"$(pwd)\"}"`},
-		WorkingDir: lo.ToPtr("."),
-		Format:     lo.ToPtr("json"),
-	})
-	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		workDir string
+		program string
+		key     string
+		want    string
+	}{
+		{
+			name:    "absolute path",
+			workDir: tmpDir,
+			program: `echo "{\"result\": \"$(test -f test.txt && echo true || echo false)\"}"`,
+			key:     "result",
+			want:    "true",
+		},
+		{
+			name:    "relative path resolves to cwd",
+			workDir: ".",
+			program: `echo "{\"result\": \"$(pwd)\"}"`,
+			key:     "result",
+			want:    cwd,
+		},
+	}
 
-	result, err := step.Resolve(t.Context())
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
+				Program:    []string{"sh", "-c", tt.program},
+				WorkingDir: lo.ToPtr(tt.workDir),
+				Format:     lo.ToPtr("json"),
+			})
+			require.NoError(t, err)
 
-	data, ok := result.Data.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, cwd, data["pwd"])
+			result, err := step.Resolve(t.Context())
+			require.NoError(t, err)
+
+			data, ok := result.Data.(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, data[tt.key])
+		})
+	}
 }
 
 func TestExecStep_InvalidJSONOutput(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", "echo 'not valid json'"},
 		Format:  lo.ToPtr("json"),
 	})
@@ -276,7 +287,7 @@ func TestExecStep_InvalidJSONOutput(t *testing.T) {
 }
 
 func TestExecStep_Meta(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"sh", "-c", `echo '{"ok": true}'`},
 	})
 	require.NoError(t, err)
@@ -289,7 +300,7 @@ func TestExecStep_Meta(t *testing.T) {
 }
 
 func TestExecStep_CommandNotFound(t *testing.T) {
-	step, err := NewExecStep("test", zap.NewNop(), ExecStepConfig{
+	step, err := NewExecStep("test", zaptest.NewLogger(t), ExecStepConfig{
 		Program: []string{"nonexistent-command-xyz"},
 	})
 	require.NoError(t, err)

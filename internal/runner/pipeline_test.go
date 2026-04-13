@@ -3,50 +3,35 @@ package runner
 import (
 	"testing"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/infracollect/infracollect/internal/engine"
+	"github.com/infracollect/infracollect/internal/enginetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
-// testRegistry returns a registry populated with no-op factories for the
-// collector/step kinds used by the pipeline tests. BuildPipeline consults
-// the descriptors for the known-kinds gate and the collector-binding rules,
-// so each step's RequiresCollector / AllowedCollectorKinds must match the
-// real integration's contract.
-func testRegistry() *engine.Registry {
-	reg := engine.NewRegistry(zap.NewNop())
-	stubCollector := engine.CollectorFactory(func(*engine.RegistryHelper, hcl.Body, *hcl.EvalContext) (engine.Collector, hcl.Diagnostics) {
-		return nil, nil
-	})
-	stubStep := engine.StepFactory(func(*engine.RegistryHelper, string, engine.Collector, hcl.Body, *hcl.EvalContext) (engine.Step, hcl.Diagnostics) {
-		return nil, nil
-	})
-	for _, k := range []string{"terraform", "http"} {
-		if err := reg.RegisterCollector(k, stubCollector); err != nil {
-			panic(err)
-		}
+// mustBuildPipeline parses HCL and builds a pipeline, failing the test on error.
+func mustBuildPipeline(t *testing.T, src []byte, filename string, reg *engine.Registry) *Pipeline {
+	t.Helper()
+	tmpl, diags := ParseJobTemplate(src, filename)
+	require.False(t, diags.HasErrors(), "parse: %s", diags.Error())
+
+	p, diags := BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
+	require.False(t, diags.HasErrors(), "build: %s", diags.Error())
+	return p
+}
+
+// dagKeys returns the topologically sorted node keys from a pipeline.
+func dagKeys(t *testing.T, p *Pipeline) []string {
+	t.Helper()
+	order, err := p.Dag().TopologicalSort()
+	require.NoError(t, err)
+
+	keys := make([]string, 0, len(order))
+	for _, n := range order {
+		keys = append(keys, n.Key())
 	}
-	if err := reg.RegisterSteps(
-		engine.StepDescriptor{
-			Kind:                  "terraform_datasource",
-			Factory:               stubStep,
-			RequiresCollector:     true,
-			AllowedCollectorKinds: []string{"terraform"},
-		},
-		engine.StepDescriptor{
-			Kind:                  "http_get",
-			Factory:               stubStep,
-			RequiresCollector:     true,
-			AllowedCollectorKinds: []string{"http"},
-		},
-		engine.StepDescriptor{Kind: "static", Factory: stubStep},
-		engine.StepDescriptor{Kind: "exec", Factory: stubStep},
-	); err != nil {
-		panic(err)
-	}
-	return reg
+	return keys
 }
 
 func TestBuildPipeline_GoalDAG(t *testing.T) {
@@ -83,7 +68,8 @@ step "terraform_datasource" "deployments" {
 	tmpl, diags := ParseJobTemplate(src, "goal.hcl")
 	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+	reg := enginetest.PipelineRegistry(t)
+	p, diags := BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
 	require.NotNil(t, p)
 
@@ -100,13 +86,7 @@ step "terraform_datasource" "deployments" {
 	require.NotNil(t, meta)
 	assert.NotNil(t, meta.ForEach, "deployments should carry for_each expression")
 
-	order, err := p.Dag().TopologicalSort()
-	require.NoError(t, err)
-
-	keys := make([]string, 0, len(order))
-	for _, n := range order {
-		keys = append(keys, n.Key())
-	}
+	keys := dagKeys(t, p)
 
 	assert.Less(t, indexOf(keys, collector.Key()), indexOf(keys, namespaces.Key()))
 	assert.Less(t, indexOf(keys, collector.Key()), indexOf(keys, deployments.Key()))
@@ -120,16 +100,12 @@ step "static" "only" {
 }
 `)
 
-	tmpl, diags := ParseJobTemplate(src, "one.hcl")
-	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
+	reg := enginetest.PipelineRegistry(t)
+	p := mustBuildPipeline(t, src, "one.hcl", reg)
 
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
-	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
-
-	order, err := p.Dag().TopologicalSort()
-	require.NoError(t, err)
-	require.Len(t, order, 1)
-	assert.Equal(t, "step:static:only", order[0].Key())
+	keys := dagKeys(t, p)
+	require.Len(t, keys, 1)
+	assert.Equal(t, "step:static:only", keys[0])
 }
 
 func TestBuildPipeline_Errors(t *testing.T) {
@@ -188,12 +164,13 @@ step "static" "b" {
 			wantMsg: "Cycle in collect job DAG",
 		},
 	}
+	reg := enginetest.PipelineRegistry(t)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpl, diags := ParseJobTemplate([]byte(tc.src), "case.hcl")
 			require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-			_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+			_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 			require.True(t, diags.HasErrors())
 			assert.Contains(t, diags.Error(), tc.wantMsg)
 		})
@@ -201,8 +178,6 @@ step "static" "b" {
 }
 
 func TestBuildPipeline_NestedBlockEdge(t *testing.T) {
-	// `step.static.first.data.items` appears only inside the nested
-	// `datasource {}` block. The dependency walk must still create the edge.
 	src := []byte(`
 step "static" "first" {
   value = "hello"
@@ -221,19 +196,10 @@ collector "terraform" "k8s" {
 }
 `)
 
-	tmpl, diags := ParseJobTemplate(src, "nested.hcl")
-	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
+	reg := enginetest.PipelineRegistry(t)
+	p := mustBuildPipeline(t, src, "nested.hcl", reg)
 
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
-	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
-
-	order, err := p.Dag().TopologicalSort()
-	require.NoError(t, err)
-
-	keys := make([]string, 0, len(order))
-	for _, n := range order {
-		keys = append(keys, n.Key())
-	}
+	keys := dagKeys(t, p)
 	assert.Less(t,
 		indexOf(keys, "step:static:first"),
 		indexOf(keys, "step:terraform_datasource:second"),
@@ -241,8 +207,6 @@ collector "terraform" "k8s" {
 }
 
 func TestBuildPipeline_NestedBlockCycle(t *testing.T) {
-	// Two steps refer to each other only from inside their nested blocks.
-	// A non-recursive walk would miss both edges and fail to detect the cycle.
 	src := []byte(`
 step "terraform_datasource" "a" {
   collector = collector.terraform.k8s
@@ -265,17 +229,16 @@ collector "terraform" "k8s" {
 }
 `)
 
+	reg := enginetest.PipelineRegistry(t)
 	tmpl, diags := ParseJobTemplate(src, "cycle.hcl")
 	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-	_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+	_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 	require.True(t, diags.HasErrors(), "expected cycle diagnostic")
 	assert.Contains(t, diags.Error(), "Cycle in collect job DAG")
 }
 
 func TestBuildPipeline_NestedEachOutsideForEach(t *testing.T) {
-	// each.* appears only inside a nested block and the step has no for_each.
-	// Build should reject it, not wait for execution.
 	src := []byte(`
 step "terraform_datasource" "bad" {
   collector = collector.terraform.k8s
@@ -290,10 +253,11 @@ collector "terraform" "k8s" {
 }
 `)
 
+	reg := enginetest.PipelineRegistry(t)
 	tmpl, diags := ParseJobTemplate(src, "each.hcl")
 	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-	_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+	_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "each.* used outside a for_each step")
 }
@@ -333,12 +297,13 @@ step "terraform_datasource" "s" {
 			wantMsg: `Incompatible collector for step "terraform_datasource"`,
 		},
 	}
+	reg := enginetest.PipelineRegistry(t)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpl, diags := ParseJobTemplate([]byte(tc.src), "policy.hcl")
 			require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-			_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+			_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 			require.True(t, diags.HasErrors())
 			assert.Contains(t, diags.Error(), tc.wantMsg)
 		})
@@ -401,12 +366,13 @@ step "terraform_datasource" "s" {
 			wantMsg: "Invalid collector binding",
 		},
 	}
+	reg := enginetest.PipelineRegistry(t)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpl, diags := ParseJobTemplate([]byte(tc.src), "binding.hcl")
 			require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-			_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+			_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 			require.True(t, diags.HasErrors())
 			assert.Contains(t, diags.Error(), tc.wantMsg)
 		})
@@ -414,9 +380,6 @@ step "terraform_datasource" "s" {
 }
 
 func TestBuildPipeline_CollectorAddressMismatch(t *testing.T) {
-	// A collector "http" "api" is declared, but the step references
-	// collector.terraform.api. With (Kind, Type, ID) identity, that is
-	// simply an unknown collector address — not a silent wire-up.
 	src := []byte(`
 collector "http" "api" {
   base_url = "https://example.com"
@@ -428,18 +391,16 @@ step "terraform_datasource" "s" {
 }
 `)
 
+	reg := enginetest.PipelineRegistry(t)
 	tmpl, diags := ParseJobTemplate(src, "type-mismatch.hcl")
 	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-	_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+	_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "Reference to unknown collector")
 }
 
 func TestBuildPipeline_StepAddressMismatch(t *testing.T) {
-	// A step "static" "first" is declared, but another step references
-	// step.http_get.first.data. With (Kind, Type, ID) identity, that is
-	// an unknown step address, not a silent match on id.
 	src := []byte(`
 step "static" "first" {
   value = "hello"
@@ -450,10 +411,11 @@ step "static" "second" {
 }
 `)
 
+	reg := enginetest.PipelineRegistry(t)
 	tmpl, diags := ParseJobTemplate(src, "step-type-mismatch.hcl")
 	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
 
-	_, diags = BuildPipeline(zap.NewNop(), tmpl, testRegistry())
+	_, diags = BuildPipeline(zaptest.NewLogger(t), tmpl, reg)
 	require.True(t, diags.HasErrors())
 	assert.Contains(t, diags.Error(), "Reference to unknown step")
 }
@@ -470,11 +432,8 @@ step "terraform_datasource" "s" {
 }
 `)
 
-	tmpl, diags := ParseJobTemplate(src, "addr.hcl")
-	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
-
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
-	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
+	reg := enginetest.PipelineRegistry(t)
+	p := mustBuildPipeline(t, src, "addr.hcl", reg)
 
 	meta, ok := p.Meta(Node{Kind: NodeTypeStep, Type: "terraform_datasource", ID: "s"})
 	require.True(t, ok)
@@ -494,27 +453,14 @@ step "static" "second" {
 }
 `)
 
-	tmpl, diags := ParseJobTemplate(src, "chain.hcl")
-	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
+	reg := enginetest.PipelineRegistry(t)
+	p := mustBuildPipeline(t, src, "chain.hcl", reg)
 
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
-	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
-
-	order, err := p.Dag().TopologicalSort()
-	require.NoError(t, err)
-
-	keys := make([]string, 0, len(order))
-	for _, n := range order {
-		keys = append(keys, n.Key())
-	}
+	keys := dagKeys(t, p)
 	assert.Less(t, indexOf(keys, "step:static:first"), indexOf(keys, "step:static:second"))
 }
 
 func TestBuildPipeline_SameIdDifferentTypes(t *testing.T) {
-	// Two collectors share the id "api" but differ in type. Two steps
-	// share the id "fetch" and also differ in type. Each step binds to a
-	// distinct collector. The pipeline must treat the nodes as independent
-	// and wire each reference to the matching (type, id) address.
 	src := []byte(`
 collector "terraform" "api" {
   provider = "hashicorp/kubernetes"
@@ -535,11 +481,8 @@ step "http_get" "fetch" {
 }
 `)
 
-	tmpl, diags := ParseJobTemplate(src, "same-id.hcl")
-	require.False(t, diags.HasErrors(), "parse diags: %s", diags.Error())
-
-	p, diags := BuildPipeline(zap.NewNop(), tmpl, testRegistry())
-	require.False(t, diags.HasErrors(), "build diags: %s", diags.Error())
+	reg := enginetest.PipelineRegistry(t)
+	p := mustBuildPipeline(t, src, "same-id.hcl", reg)
 
 	tfColl := Node{Kind: NodeTypeCollector, Type: "terraform", ID: "api"}
 	httpColl := Node{Kind: NodeTypeCollector, Type: "http", ID: "api"}
@@ -561,14 +504,9 @@ step "http_get" "fetch" {
 	assert.Equal(t, "http", httpMeta.CollectorAddr.Type)
 	assert.Equal(t, "api", httpMeta.CollectorAddr.Name)
 
-	order, err := p.Dag().TopologicalSort()
-	require.NoError(t, err)
-	require.Len(t, order, 4)
+	keys := dagKeys(t, p)
+	require.Len(t, keys, 4)
 
-	keys := make([]string, 0, len(order))
-	for _, n := range order {
-		keys = append(keys, n.Key())
-	}
 	assert.Less(t, indexOf(keys, tfColl.Key()), indexOf(keys, tfStep.Key()))
 	assert.Less(t, indexOf(keys, httpColl.Key()), indexOf(keys, httpStep.Key()))
 }

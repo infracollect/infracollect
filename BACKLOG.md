@@ -14,7 +14,7 @@ This file tracks ideas, tasks, and work items for infracollect. Items are organi
 
 <!-- Items that block other work or are urgent fixes -->
 
-### [ ] Basic test coverage
+### [x] Basic test coverage
 
 Minimum test coverage for core components:
 
@@ -166,3 +166,5 @@ Test with Kind, RustFS, etc... for the different collectors.
       expansion (completed 2026-01-26)
 - [x] **Validate command** - Added `validate` command with pretty error formatting for validation and YAML errors
       (completed 2026-01-26)
+- [x] **Basic test coverage** - Added enginetest shared helpers, encoder tests, hclfuncs tests, HTTP collector tests,
+      and end-to-end runner tests (completed 2026-04-13)

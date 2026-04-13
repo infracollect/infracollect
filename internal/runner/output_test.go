@@ -11,13 +11,14 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/infracollect/infracollect/internal/enginetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestRunner_Output_ExplicitStdout(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 
 	src := []byte(`
 step "stub_nocoll" "only" {
@@ -30,13 +31,13 @@ output {
 }
 `)
 
-	out, err := runSilently(t, newRunner(t, src, "stdout.hcl", stub.reg))
+	out, err := runSilently(t, newRunner(t, src, "stdout.hcl", stub.Reg))
 	require.NoError(t, err)
 	require.Contains(t, out, "stub_nocoll/only")
 }
 
 func TestRunner_Output_FilesystemSink(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 	dir := t.TempDir()
 
 	src := []byte(fmt.Sprintf(`
@@ -51,7 +52,7 @@ output {
 }
 `, dir))
 
-	_, err := runSilently(t, newRunner(t, src, "fs.hcl", stub.reg))
+	_, err := runSilently(t, newRunner(t, src, "fs.hcl", stub.Reg))
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(dir, "stub_nocoll", "only.json"))
@@ -63,7 +64,7 @@ output {
 }
 
 func TestRunner_Output_TarArchiveToFilesystem(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 	dir := t.TempDir()
 
 	src := []byte(fmt.Sprintf(`
@@ -86,7 +87,7 @@ output {
 }
 `, dir))
 
-	_, err := runSilently(t, newRunner(t, src, "tar.hcl", stub.reg))
+	_, err := runSilently(t, newRunner(t, src, "tar.hcl", stub.Reg))
 	require.NoError(t, err)
 
 	archivePath := filepath.Join(dir, "archive-job.tar")
@@ -172,8 +173,8 @@ output {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			stub := newStubRegistry(t)
-			_, err := runSilently(t, newRunner(t, []byte(tc.src), "err.hcl", stub.reg))
+			stub := enginetest.NewStubRegistry(t)
+			_, err := runSilently(t, newRunner(t, []byte(tc.src), "err.hcl", stub.Reg))
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tc.wantMsg)
 		})
@@ -183,7 +184,7 @@ output {
 // --- output steps filter tests -----------------------------------------------
 
 func TestRunner_Output_StepsFilter(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 	dir := t.TempDir()
 
 	src := []byte(fmt.Sprintf(`
@@ -203,7 +204,7 @@ output {
 }
 `, dir))
 
-	_, err := runSilently(t, newRunner(t, src, "filter.hcl", stub.reg))
+	_, err := runSilently(t, newRunner(t, src, "filter.hcl", stub.Reg))
 	require.NoError(t, err)
 
 	// alpha should be written
@@ -219,7 +220,7 @@ output {
 }
 
 func TestRunner_Output_StepsFilterMultiple(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 	dir := t.TempDir()
 
 	src := []byte(fmt.Sprintf(`
@@ -243,7 +244,7 @@ output {
 }
 `, dir))
 
-	_, err := runSilently(t, newRunner(t, src, "multi.hcl", stub.reg))
+	_, err := runSilently(t, newRunner(t, src, "multi.hcl", stub.Reg))
 	require.NoError(t, err)
 
 	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "a.json"))
@@ -255,7 +256,7 @@ output {
 }
 
 func TestRunner_Output_NoStepsMeansAll(t *testing.T) {
-	stub := newStubRegistry(t)
+	stub := enginetest.NewStubRegistry(t)
 	dir := t.TempDir()
 
 	src := []byte(fmt.Sprintf(`
@@ -274,7 +275,7 @@ output {
 }
 `, dir))
 
-	_, err := runSilently(t, newRunner(t, src, "all.hcl", stub.reg))
+	_, err := runSilently(t, newRunner(t, src, "all.hcl", stub.Reg))
 	require.NoError(t, err)
 
 	_, err = os.ReadFile(filepath.Join(dir, "stub_nocoll", "a.json"))
@@ -360,12 +361,12 @@ output {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			stub := newStubRegistry(t)
+			stub := enginetest.NewStubRegistry(t)
 
 			tmpl, diags := ParseJobTemplate([]byte(tc.src), "err.hcl")
 			require.False(t, diags.HasErrors(), "parse: %s", diags.Error())
 
-			_, diags = New(zap.NewNop(), tmpl, stub.reg, nil)
+			_, diags = New(zaptest.NewLogger(t), tmpl, stub.Reg, nil)
 			require.True(t, diags.HasErrors(), "expected pipeline build error")
 			assert.Contains(t, diags.Error(), tc.wantMsg)
 		})
@@ -385,7 +386,6 @@ func TestBuildOutputPipeline_DefaultsWhenNil(t *testing.T) {
 }
 
 func TestBuildOutputPipeline_ArchiveWrapsInnerSink(t *testing.T) {
-	// Parse a tiny template so we get real hcl.Body values on each block.
 	tmpl, diags := ParseJobTemplate([]byte(`
 output {
   encoding "json" {}
@@ -403,7 +403,7 @@ output {
 }
 
 // tarEntries reads a plain (uncompressed) tar archive and returns its entries
-// as a filename -> bytes map. Used by the tar-archive runner test.
+// as a filename -> bytes map.
 func tarEntries(t *testing.T, data []byte) map[string][]byte {
 	t.Helper()
 	tr := tar.NewReader(bytes.NewReader(data))

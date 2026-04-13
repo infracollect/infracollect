@@ -104,20 +104,34 @@ func TestNewTarArchiver(t *testing.T) {
 }
 
 func TestTarArchiver_AddFile(t *testing.T) {
-	archiver, err := NewTarArchiver("gzip")
-	require.NoError(t, err)
+	tests := []struct {
+		name        string
+		compression string
+		filename    string
+		content     string
+	}{
+		{"gzip", "gzip", "test.txt", "hello, world!"},
+		{"zstd", "zstd", "zstd-test.txt", "zstd compressed content"},
+		{"none", "none", "plain.txt", "uncompressed content"},
+	}
 
-	content := "hello, world!"
-	err = archiver.AddFile(t.Context(), "test.txt", bytes.NewReader([]byte(content)))
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archiver, err := NewTarArchiver(tt.compression)
+			require.NoError(t, err)
 
-	reader, err := archiver.Close()
-	require.NoError(t, err)
+			err = archiver.AddFile(t.Context(), tt.filename, bytes.NewReader([]byte(tt.content)))
+			require.NoError(t, err)
 
-	found, err := readTarEntries(reader, "gzip")
-	require.NoError(t, err)
-	assert.Len(t, found, 1)
-	assert.Equal(t, content, found["test.txt"])
+			reader, err := archiver.Close()
+			require.NoError(t, err)
+
+			found, err := readTarEntries(reader, tt.compression)
+			require.NoError(t, err)
+			assert.Len(t, found, 1)
+			assert.Equal(t, tt.content, found[tt.filename])
+		})
+	}
 }
 
 func TestTarArchiver_MultipleFiles(t *testing.T) {
@@ -143,40 +157,6 @@ func TestTarArchiver_MultipleFiles(t *testing.T) {
 	for name, content := range files {
 		assert.Equal(t, content, found[name], "file %s", name)
 	}
-}
-
-func TestTarArchiver_Zstd(t *testing.T) {
-	archiver, err := NewTarArchiver("zstd")
-	require.NoError(t, err)
-
-	content := "zstd compressed content"
-	err = archiver.AddFile(t.Context(), "zstd-test.txt", bytes.NewReader([]byte(content)))
-	require.NoError(t, err)
-
-	reader, err := archiver.Close()
-	require.NoError(t, err)
-
-	found, err := readTarEntries(reader, "zstd")
-	require.NoError(t, err)
-	assert.Len(t, found, 1)
-	assert.Equal(t, content, found["zstd-test.txt"])
-}
-
-func TestTarArchiver_NoCompression(t *testing.T) {
-	archiver, err := NewTarArchiver("none")
-	require.NoError(t, err)
-
-	content := "uncompressed content"
-	err = archiver.AddFile(t.Context(), "plain.txt", bytes.NewReader([]byte(content)))
-	require.NoError(t, err)
-
-	reader, err := archiver.Close()
-	require.NoError(t, err)
-
-	found, err := readTarEntries(reader, "none")
-	require.NoError(t, err)
-	assert.Len(t, found, 1)
-	assert.Equal(t, content, found["plain.txt"])
 }
 
 func TestTarArchiver_CloseTwice(t *testing.T) {
