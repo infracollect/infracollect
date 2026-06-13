@@ -1,6 +1,6 @@
 module github.com/infracollect/infracollect
 
-go 1.25.9
+go 1.25.11
 
 tool golang.org/x/tools/go/packages
 
@@ -19,8 +19,8 @@ require (
 	github.com/urfave/cli/v3 v3.6.1
 	github.com/zclconf/go-cty v1.17.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/term v0.39.0
-	golang.org/x/tools v0.40.0
+	golang.org/x/term v0.43.0
+	golang.org/x/tools v0.44.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -60,10 +60,10 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	golang.org/x/mod v0.31.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
@@ -75,5 +75,5 @@ require (
 	github.com/samber/lo v1.52.0
 	github.com/spf13/afero v1.15.0
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )
