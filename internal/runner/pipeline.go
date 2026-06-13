@@ -52,7 +52,7 @@ func (p *Pipeline) OutputSteps() map[string]struct{} { return p.outputSteps }
 // (unknown kind, dangling reference, cycle, each.* outside a collection)
 // surface as hcl.Diagnostics with source ranges intact.
 func BuildPipeline(logger *zap.Logger, tmpl *JobTemplate, registry *engine.Registry) (*Pipeline, hcl.Diagnostics) {
-	logger.Info("building pipeline", zap.String("job_name", tmpl.JobName()))
+	logger.Debug("building pipeline", zap.String("job_name", tmpl.JobName()))
 
 	p := &Pipeline{
 		dag:  NewDirectedAcyclicGraph(),

@@ -20,9 +20,26 @@ import (
 )
 
 var collectCommand = &cli.Command{
-	Name:  "collect",
-	Usage: "Collect infrastructure data",
-	Flags: []cli.Flag{
+	Name:      "collect",
+	Usage:     "Collect infrastructure data",
+	Flags:     jobFlags(),
+	Arguments: jobArguments(),
+	Action: func(ctx context.Context, command *cli.Command) error {
+		r, err := buildRunnerFromCommand(ctx, command)
+		if err != nil {
+			return err
+		}
+
+		if _, err := r.Run(ctx); err != nil {
+			return fmt.Errorf("failed to run job: %w", err)
+		}
+
+		return nil
+	},
+}
+
+func jobFlags() []cli.Flag {
+	return []cli.Flag{
 		&cli.StringSliceFlag{
 			Name:  "pass-env",
 			Usage: "Environment variables to pass through to job execution (can be repeated)",
@@ -35,90 +52,90 @@ var collectCommand = &cli.Command{
 			Name:  "trust-remote",
 			Usage: "Trust remote job file",
 		},
-	},
-	Arguments: []cli.Argument{
+	}
+}
+
+func jobArguments() []cli.Argument {
+	return []cli.Argument{
 		&cli.StringArg{
 			Name:      "job",
 			UsageText: "The job file to collect data from",
 		},
-	},
-	Action: func(ctx context.Context, command *cli.Command) error {
-		logger := getLogger(ctx)
+	}
+}
 
-		jobFilename := command.StringArg("job")
-		if jobFilename == "" {
-			return fmt.Errorf("no job file provided")
+func buildRunnerFromCommand(ctx context.Context, command *cli.Command) (*runner.Runner, error) {
+	logger := getLogger(ctx)
+
+	jobFilename := command.StringArg("job")
+	if jobFilename == "" {
+		return nil, fmt.Errorf("no job file provided")
+	}
+
+	jobFile, isRemote, err := readJobFile(ctx, jobFilename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read job file '%s': %w", jobFilename, err)
+	}
+
+	if isRemote && !command.Bool("trust-remote") {
+		if !isInteractive(ctx) {
+			return nil, fmt.Errorf("remote job file requires --trust-remote flag in non-interactive mode")
 		}
 
-		jobFile, isRemote, err := readJobFile(ctx, jobFilename)
+		logger.Warn("remote job file is not trusted", zap.String("job_filename", jobFilename))
+		fmt.Println(string(jobFile))
+
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Are you sure you want to trust this remote job file? (y/n): ")
+		response, err := reader.ReadString('\n')
 		if err != nil {
-			return fmt.Errorf("failed to read job file '%s': %w", jobFilename, err)
+			return nil, fmt.Errorf("failed to read confirmation: %w", err)
 		}
+		if strings.TrimSpace(response) != "y" {
+			return nil, fmt.Errorf("remote job file is not trusted")
+		}
+	}
 
-		if isRemote && !command.Bool("trust-remote") {
-			if !isInteractive(ctx) {
-				return fmt.Errorf("remote job file requires --trust-remote flag in non-interactive mode")
+	logger = logger.With(zap.String("job_filename", jobFilename))
+	logger.Debug("parsing job file")
+
+	tmpl, diags := runner.ParseJobTemplate(jobFile, jobFilename)
+	if diags.HasErrors() {
+		writeDiags(diags)
+		return nil, fmt.Errorf("failed to parse job file '%s'", jobFilename)
+	}
+
+	var allowedEnv []string
+	if command.Bool("pass-all-env") {
+		logger.Warn("allowing all environment variables to be used in job configuration")
+		allowedEnv = lo.Map(os.Environ(), func(kv string, _ int) string {
+			name, _, ok := strings.Cut(kv, "=")
+			if !ok {
+				return ""
 			}
+			return name
+		})
+	} else {
+		allowedEnv = command.StringSlice("pass-env")
+	}
 
-			logger.Warn("remote job file is not trusted", zap.String("job_filename", jobFilename))
-			fmt.Println(string(jobFile))
+	registry, err := buildRegistry(logger.Named("registry"), allowedEnv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build registry: %w", err)
+	}
 
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Print("Are you sure you want to trust this remote job file? (y/n): ")
-			response, err := reader.ReadString('\n')
-			if err != nil {
-				return fmt.Errorf("failed to read confirmation: %w", err)
-			}
-			if strings.TrimSpace(response) != "y" {
-				return fmt.Errorf("remote job file is not trusted")
-			}
-		}
+	r, diags := runner.New(
+		logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"),
+		tmpl,
+		registry,
+		allowedEnv,
+	)
+	if diags.HasErrors() {
+		writeDiags(diags)
+		return nil, fmt.Errorf("failed to create runner for job '%s'", jobFilename)
+	}
 
-		logger = logger.With(zap.String("job_filename", jobFilename))
-		logger.Info("parsing job file")
-
-		tmpl, diags := runner.ParseJobTemplate(jobFile, jobFilename)
-		if diags.HasErrors() {
-			writeDiags(diags)
-			return fmt.Errorf("failed to parse job file '%s'", jobFilename)
-		}
-
-		var allowedEnv []string
-		if command.Bool("pass-all-env") {
-			logger.Warn("allowing all environment variables to be used in job configuration")
-			allowedEnv = lo.Map(os.Environ(), func(kv string, _ int) string {
-				name, _, ok := strings.Cut(kv, "=")
-				if !ok {
-					return ""
-				}
-				return name
-			})
-		} else {
-			allowedEnv = command.StringSlice("pass-env")
-		}
-
-		registry, err := buildRegistry(logger.Named("registry"), allowedEnv)
-		if err != nil {
-			return fmt.Errorf("failed to build registry: %w", err)
-		}
-
-		r, diags := runner.New(
-			logger.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel)).Named("runner"),
-			tmpl,
-			registry,
-			allowedEnv,
-		)
-		if diags.HasErrors() {
-			writeDiags(diags)
-			return fmt.Errorf("failed to create runner for job '%s'", jobFilename)
-		}
-
-		if _, err := r.Run(ctx); err != nil {
-			return fmt.Errorf("failed to run job: %w", err)
-		}
-
-		return nil
-	},
+	return r, nil
 }
 
 // writeDiags renders hcl.Diagnostics to stderr with source ranges and

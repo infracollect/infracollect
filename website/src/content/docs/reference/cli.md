@@ -19,6 +19,7 @@ VERSION:
 
 COMMANDS:
    collect   Collect infrastructure data
+   plan      Show execution plan without running collectors or steps
    validate  Validate a job file
    version   Print version information
    help, h   Shows a list of commands or help for one command
@@ -39,6 +40,27 @@ NAME:
 
 USAGE:
    infracollect collect [options] The job file to collect data from
+
+OPTIONS:
+   --pass-env string [ --pass-env string ]  Environment variables to pass through to job execution (can be repeated)
+   --pass-all-env                           Pass all environment variables through to job execution
+   --trust-remote                           Trust remote job file
+   --help, -h                               show help
+
+GLOBAL OPTIONS:
+   --debug, -d                    Enable debug logging
+   --log-level string, -l string  Log Level (debug, info, warn, error, fatal) (default: "info")
+   --log-format string            Log format (json, console) (default: "console")
+```
+
+## plan
+
+```text
+NAME:
+   infracollect plan - Show execution plan without running collectors or steps
+
+USAGE:
+   infracollect plan [options] The job file to collect data from
 
 OPTIONS:
    --pass-env string [ --pass-env string ]  Environment variables to pass through to job execution (can be repeated)

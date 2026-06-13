@@ -33,6 +33,10 @@ var commands = []command{
 		args: []string{"collect", "--help"},
 	},
 	{
+		name: "plan",
+		args: []string{"plan", "--help"},
+	},
+	{
 		name: "validate",
 		args: []string{"validate", "--help"},
 	},

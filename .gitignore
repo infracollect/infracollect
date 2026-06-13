@@ -3,4 +3,9 @@
 !.claude/settings.json
 !.claude/hooks/
 .vscode
+.cursor
 output
+
+# Build artifacts
+/infracollect
+/bin/

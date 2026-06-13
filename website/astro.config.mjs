@@ -28,6 +28,7 @@ export default defineConfig({
           items: [
             { label: "Installation", slug: "guides/install" },
             { label: "Your first job", slug: "guides/your-first-job" },
+            { label: "Preview a job", slug: "guides/preview-your-job" },
             { label: "What's next", slug: "guides/whats-next" },
           ],
         },

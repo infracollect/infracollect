@@ -140,6 +140,22 @@ func TestDirectedAcyclicGraph_AddEdgeUnchecked_UnknownNode(t *testing.T) {
 	assert.ErrorContains(t, err, "not found")
 }
 
+func TestDirectedAcyclicGraph_Edges(t *testing.T) {
+	g := NewDirectedAcyclicGraph()
+	require.NoError(t, g.AddNode(stepNode("a")))
+	require.NoError(t, g.AddNode(stepNode("b")))
+	require.NoError(t, g.AddEdge(stepNode("a"), stepNode("b")))
+
+	edges := g.Edges()
+	require.Contains(t, edges, "step:t:a")
+	assert.Equal(t, []string{"step:t:b"}, edges["step:t:a"])
+
+	// Verify it's a copy — mutating doesn't affect the graph.
+	edges["step:t:a"] = nil
+	original := g.Edges()
+	assert.Equal(t, []string{"step:t:b"}, original["step:t:a"])
+}
+
 func indexOf(values []string, target string) int {
 	for idx, value := range values {
 		if value == target {

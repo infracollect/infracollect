@@ -195,6 +195,17 @@ func (g *DirectedAcyclicGraph) kahnSort() ([]Node, error) {
 	return order, nil
 }
 
+// Edges returns the adjacency list as a shallow copy. Keys and values are
+// node keys (Node.Key()). Callers may read but must not mutate the inner
+// slices.
+func (g *DirectedAcyclicGraph) Edges() map[string][]string {
+	out := make(map[string][]string, len(g.edges))
+	for k, v := range g.edges {
+		out[k] = v
+	}
+	return out
+}
+
 func (g *DirectedAcyclicGraph) canReach(from, to Node) (bool, error) {
 	queue := []string{from.Key()}
 	visited := map[string]bool{from.Key(): true}

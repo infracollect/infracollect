@@ -50,6 +50,7 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			collectCommand,
+			planCommand,
 			validateCommand,
 			versionCommand,
 		},
