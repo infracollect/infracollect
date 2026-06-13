@@ -1,0 +1,11 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Writes to tabwriter / stdout in CLI rendering never usefully fail;
+      # checking each Fprintf return adds noise without catching real bugs.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
