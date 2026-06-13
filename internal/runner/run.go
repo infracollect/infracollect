@@ -24,11 +24,9 @@ type Runner struct {
 	collectors map[string]engine.Collector // keyed by "<type>/<id>"
 	raw        map[string]engine.Result    // keyed by "<type>/<id>"
 
-	// Incremental mirrors of the step.* and collector.* namespaces, keyed
-	// by type then by id. Updated in place as each node completes so
-	// childCtxForNode does not rebuild them from scratch.
-	stepByType      map[string]map[string]cty.Value
-	collectorByType map[string]map[string]cty.Value
+	// scope owns the step.* / collector.* namespaces and builds each node's
+	// EvalContext from them.
+	scope *scope
 }
 
 func New(
@@ -37,7 +35,7 @@ func New(
 	registry *engine.Registry,
 	allowedEnv []string,
 ) (*Runner, hcl.Diagnostics) {
-	logger.Info("creating runner", zap.String("job_name", tmpl.JobName()))
+	logger.Debug("creating runner", zap.String("job_name", tmpl.JobName()))
 
 	baseCtx, err := BuildBaseEvalContext(tmpl, allowedEnv)
 	if err != nil {
@@ -54,15 +52,14 @@ func New(
 	}
 
 	return &Runner{
-		logger:          logger,
-		tmpl:            tmpl,
-		pipeline:        pipeline,
-		baseCtx:         baseCtx,
-		registry:        registry,
-		collectors:      make(map[string]engine.Collector),
-		raw:             make(map[string]engine.Result),
-		stepByType:      make(map[string]map[string]cty.Value),
-		collectorByType: make(map[string]map[string]cty.Value),
+		logger:     logger,
+		tmpl:       tmpl,
+		pipeline:   pipeline,
+		baseCtx:    baseCtx,
+		registry:   registry,
+		collectors: make(map[string]engine.Collector),
+		raw:        make(map[string]engine.Result),
+		scope:      newScope(baseCtx),
 	}, diags
 }
 
@@ -109,25 +106,22 @@ func (r *Runner) Run(ctx context.Context) (map[string]engine.Result, error) {
 	return r.raw, nil
 }
 
-// writeResults encodes every collected result through the configured
-// encoder and streams it to the configured sink. Keys are sorted so
-// concatenated output is reproducible despite Go's randomized map
-// iteration. When the output block declares a `steps` filter, only
-// the referenced steps are written.
+// writeResults feeds every collected result to the ResultWriter built from the
+// output block. Keys are sorted so concatenated output is reproducible despite
+// Go's randomized map iteration. When the output block declares a `steps`
+// filter, only the referenced steps are written.
 func (r *Runner) writeResults(ctx context.Context) error {
-	encoder, sink, err := buildOutputPipeline(ctx, r.tmpl.Output, r.baseCtx, r.tmpl.JobName())
+	writer, err := buildResultWriter(ctx, r.tmpl.Output, r.baseCtx, r.tmpl.JobName())
 	if err != nil {
-		return fmt.Errorf("failed to build output pipeline: %w", err)
+		return fmt.Errorf("failed to build result writer: %w", err)
 	}
 	defer func() {
-		if err := sink.Close(ctx); err != nil {
-			r.logger.Warn("failed to close sink", zap.Error(err))
+		if err := writer.Close(ctx); err != nil {
+			r.logger.Warn("failed to close result writer", zap.Error(err))
 		}
 	}()
 
 	allowed := r.pipeline.OutputSteps()
-
-	ext := encoder.FileExtension()
 	keys := make([]string, 0, len(r.raw))
 	for k := range r.raw {
 		if allowed != nil {
@@ -140,30 +134,15 @@ func (r *Runner) writeResults(ctx context.Context) error {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		result := r.raw[key]
-		reader, err := encoder.EncodeResult(ctx, result)
-		if err != nil {
-			return fmt.Errorf("failed to encode result %s: %w", key, err)
-		}
-		if err := sink.Write(ctx, key+"."+ext, reader); err != nil {
-			return fmt.Errorf("failed to write result %s: %w", key, err)
-		}
-
-		if len(result.Meta) > 0 {
-			metaReader, err := encoder.EncodeMeta(ctx, result.Meta)
-			if err != nil {
-				return fmt.Errorf("failed to encode meta %s: %w", key, err)
-			}
-			if err := sink.Write(ctx, key+".meta."+ext, metaReader); err != nil {
-				return fmt.Errorf("failed to write meta %s: %w", key, err)
-			}
+		if err := writer.Write(ctx, key, r.raw[key]); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 func (r *Runner) runCollector(ctx context.Context, node Node, meta *NodeMeta) error {
-	ectx := r.childCtxForNode()
+	ectx := r.scope.child()
 
 	collector, diags := r.registry.CreateCollector(node.Type, meta.Body, ectx)
 	if diags.HasErrors() {
@@ -175,13 +154,7 @@ func (r *Runner) runCollector(ctx context.Context, node Node, meta *NodeMeta) er
 	}
 
 	r.collectors[nodeKey(node.Type, node.ID)] = collector
-	if r.collectorByType[node.Type] == nil {
-		r.collectorByType[node.Type] = make(map[string]cty.Value)
-	}
-	// Sentinel so `collector = collector.<type>.<id>` traversals type-check
-	// during step-body decode. resolveStepCollector walks the expression
-	// directly rather than evaluating it.
-	r.collectorByType[node.Type][node.ID] = cty.EmptyObjectVal
+	r.scope.recordCollector(node)
 	r.logger.Info("collector started",
 		zap.String("type", node.Type),
 		zap.String("id", node.ID),
@@ -190,32 +163,21 @@ func (r *Runner) runCollector(ctx context.Context, node Node, meta *NodeMeta) er
 }
 
 func (r *Runner) runStep(ctx context.Context, node Node, meta *NodeMeta) error {
-	ectx := r.childCtxForNode()
-
 	collector, err := r.resolveStepCollector(node, meta)
 	if err != nil {
 		return err
 	}
 
-	step, diags := r.registry.CreateStep(node.Type, node.ID, collector, meta.Body, ectx)
-	if diags.HasErrors() {
-		return fmt.Errorf("failed to create step %s/%s: %s", node.Type, node.ID, diags.Error())
+	addr := nodeKey(node.Type, node.ID)
+	result, err := r.executeStepOnce(ctx, node, meta, collector, r.scope.child(), addr)
+	if err != nil {
+		return err
 	}
 
-	result, err := step.Resolve(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to resolve step %s/%s: %w", node.Type, node.ID, err)
+	r.raw[addr] = result
+	if err := r.scope.recordResult(node, result); err != nil {
+		return fmt.Errorf("failed to convert result for %s: %w", addr, err)
 	}
-
-	resultCty, err := resultToCty(result)
-	if err != nil {
-		return fmt.Errorf("failed to convert result for %s/%s: %w", node.Type, node.ID, err)
-	}
-	if r.stepByType[node.Type] == nil {
-		r.stepByType[node.Type] = make(map[string]cty.Value)
-	}
-	r.stepByType[node.Type][node.ID] = resultCty
-	r.raw[nodeKey(node.Type, node.ID)] = result
 
 	r.logger.Info("step resolved",
 		zap.String("type", node.Type),
@@ -224,14 +186,41 @@ func (r *Runner) runStep(ctx context.Context, node Node, meta *NodeMeta) error {
 	return nil
 }
 
+// executeStepOnce creates and resolves a step against the given eval context.
+// It is the shared kernel of a plain step run and one iteration of a for_each
+// collection; label distinguishes the two in error messages
+// ("<type>/<id>" vs "<type>/<id>[<key>]").
+func (r *Runner) executeStepOnce(
+	ctx context.Context,
+	node Node,
+	meta *NodeMeta,
+	collector engine.Collector,
+	ectx *hcl.EvalContext,
+	label string,
+) (engine.Result, error) {
+	step, diags := r.registry.CreateStep(node.Type, node.ID, collector, meta.Body, ectx)
+	if diags.HasErrors() {
+		return engine.Result{}, fmt.Errorf("failed to create step %s: %s", label, diags.Error())
+	}
+
+	result, err := step.Resolve(ctx)
+	if err != nil {
+		return engine.Result{}, fmt.Errorf("failed to resolve step %s: %w", label, err)
+	}
+	return result, nil
+}
+
 func (r *Runner) runCollection(ctx context.Context, node Node, meta *NodeMeta) error {
 	if meta.ForEach == nil {
 		return fmt.Errorf("collection node %s/%s has no for_each expression", node.Type, node.ID)
 	}
 
-	baseStepCtx := r.childCtxForNode()
+	// Build the per-node context once; each iteration only layers `each` onto
+	// it, so the step.*/collector.* namespaces are materialised a single time
+	// per collection rather than once per element.
+	base := r.scope.child()
 
-	forVal, diags := meta.ForEach.Value(baseStepCtx)
+	forVal, diags := meta.ForEach.Value(base)
 	if diags.HasErrors() {
 		return fmt.Errorf("failed to evaluate for_each for %s/%s: %s", node.Type, node.ID, diags.Error())
 	}
@@ -244,7 +233,6 @@ func (r *Runner) runCollection(ctx context.Context, node Node, meta *NodeMeta) e
 		return err
 	}
 
-	iterResults := make(map[string]cty.Value)
 	iterRaw := make(map[string]engine.Result)
 
 	it := forVal.ElementIterator()
@@ -253,52 +241,24 @@ func (r *Runner) runCollection(ctx context.Context, node Node, meta *NodeMeta) e
 		// validateForEachValue restricts for_each to maps, objects, and
 		// sets of strings, so key is always a cty.String.
 		keyStr := key.AsString()
+		label := fmt.Sprintf("%s/%s[%s]", node.Type, node.ID, keyStr)
 
-		iterCtx := baseStepCtx.NewChild()
-		iterCtx.Variables = map[string]cty.Value{
-			"each": cty.ObjectVal(map[string]cty.Value{
-				"key":   key,
-				"value": val,
-			}),
-		}
-
-		step, diags := r.registry.CreateStep(node.Type, node.ID, collector, meta.Body, iterCtx)
-		if diags.HasErrors() {
-			return fmt.Errorf("failed to create step %s/%s[%s]: %s", node.Type, node.ID, keyStr, diags.Error())
-		}
-
-		result, err := step.Resolve(ctx)
+		result, err := r.executeStepOnce(ctx, node, meta, collector, withEach(base, key, val), label)
 		if err != nil {
-			return fmt.Errorf("failed to resolve step %s/%s[%s]: %w", node.Type, node.ID, keyStr, err)
+			return err
 		}
-
-		resultCty, err := resultToCty(result)
-		if err != nil {
-			return fmt.Errorf("failed to convert result for %s/%s[%s]: %w", node.Type, node.ID, keyStr, err)
-		}
-
-		iterResults[keyStr] = resultCty
 		iterRaw[keyStr] = result
 	}
 
-	// Empty collections need an explicit empty object so traversals into the
-	// collection still resolve to a known value.
-	var aggregated cty.Value
-	if len(iterResults) == 0 {
-		aggregated = cty.EmptyObjectVal
-	} else {
-		aggregated = cty.ObjectVal(iterResults)
-	}
-	if r.stepByType[node.Type] == nil {
-		r.stepByType[node.Type] = make(map[string]cty.Value)
-	}
-	r.stepByType[node.Type][node.ID] = aggregated
 	r.raw[nodeKey(node.Type, node.ID)] = engine.Result{Data: iterRaw}
+	if err := r.scope.recordCollection(node, iterRaw); err != nil {
+		return fmt.Errorf("failed to convert results for %s/%s: %w", node.Type, node.ID, err)
+	}
 
 	r.logger.Info("collection resolved",
 		zap.String("type", node.Type),
 		zap.String("id", node.ID),
-		zap.Int("iterations", len(iterResults)),
+		zap.Int("iterations", len(iterRaw)),
 	)
 	return nil
 }
@@ -314,59 +274,6 @@ func (r *Runner) resolveStepCollector(node Node, meta *NodeMeta) (engine.Collect
 		return nil, fmt.Errorf("step %s/%s references unknown collector %s", node.Type, node.ID, key)
 	}
 	return c, nil
-}
-
-func (r *Runner) childCtxForNode() *hcl.EvalContext {
-	child := r.baseCtx.NewChild()
-	child.Variables = map[string]cty.Value{
-		"step":      r.stepNamespace(),
-		"collector": r.collectorNamespace(),
-	}
-	return child
-}
-
-func (r *Runner) stepNamespace() cty.Value {
-	return wrapByType(r.stepByType)
-}
-
-// collectorNamespace returns an object of sentinels keyed by collector type
-// and id. The sentinels exist purely so `collector = collector.<type>.<id>`
-// traversals type-check during step-body decode; resolveStepCollector walks
-// the expression directly rather than evaluating it.
-func (r *Runner) collectorNamespace() cty.Value {
-	return wrapByType(r.collectorByType)
-}
-
-func wrapByType(byType map[string]map[string]cty.Value) cty.Value {
-	if len(byType) == 0 {
-		return cty.EmptyObjectVal
-	}
-	obj := make(map[string]cty.Value, len(byType))
-	for typ, ids := range byType {
-		obj[typ] = cty.ObjectVal(ids)
-	}
-	return cty.ObjectVal(obj)
-}
-
-func resultToCty(result engine.Result) (cty.Value, error) {
-	dataCty, err := engine.AnyToCty(result.Data)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	metaVal := cty.EmptyObjectVal
-	if len(result.Meta) > 0 {
-		m := make(map[string]cty.Value, len(result.Meta))
-		for k, v := range result.Meta {
-			m[k] = cty.StringVal(v)
-		}
-		metaVal = cty.ObjectVal(m)
-	}
-
-	return cty.ObjectVal(map[string]cty.Value{
-		"data": dataCty,
-		"meta": metaVal,
-	}), nil
 }
 
 // closeCollectors closes every started collector, continuing past errors so

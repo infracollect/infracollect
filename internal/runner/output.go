@@ -13,6 +13,22 @@ import (
 	"github.com/infracollect/infracollect/internal/engine/sinks"
 )
 
+// buildResultWriter assembles the output {} block into a ResultWriter — the
+// single object the Runner feeds results to. It hides the encoder/sink pair and
+// the file-naming, meta, and close-ordering rules behind one seam.
+func buildResultWriter(
+	ctx context.Context,
+	output *OutputBlock,
+	baseCtx *hcl.EvalContext,
+	jobName string,
+) (*engine.ResultWriter, error) {
+	encoder, sink, err := buildOutputPipeline(ctx, output, baseCtx, jobName)
+	if err != nil {
+		return nil, err
+	}
+	return engine.NewResultWriter(encoder, sink), nil
+}
+
 // buildOutputPipeline translates the parsed output {} block into an
 // (encoder, sink) pair. When output is nil the pipeline defaults to a JSON
 // encoder streaming to stdout, preserving the pre-output-block behaviour.

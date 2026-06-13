@@ -86,9 +86,10 @@ flowchart TD
 **Responsibilities**:
 
 - Walk the DAG in topological order
-- For each node, build an `hcl.EvalContext` with predecessor results stamped in
+- For each node, build an `hcl.EvalContext` with predecessor results stamped in (owned by the `scope` module in
+  `internal/runner/scope.go`, which holds the `step.*`/`collector.*` namespaces)
 - Call integration factories to decode the `hcl.Body` and create collector/step instances
-- Execute steps and collect results
+- Execute steps and collect results (plain steps and `for_each` collections share the `executeStepOnce` kernel)
 - Write results to configured sink
 
 **Key Functions**:
@@ -189,15 +190,18 @@ Pipeline.DAG → topological walk → for each node:
 ### 4. Result Writing
 
 ```text
-Runner.WriteResults() → Encoder.EncodeResult() → Sink.Write() [per step]
-→ Sink.Close()
+Runner.writeResults() → ResultWriter.Write(id, result) [per selected step, sorted]
+→ ResultWriter.Close()
 → Files written (one per step, or one archive containing all steps) or stdout output
 ```
 
 ## Output System
 
-Results are written by the Runner through an encoder and sink. When `output.archive` is configured, an `ArchiveSink`
-wraps the underlying sink and bundles all step outputs into a single archive file.
+The Runner feeds results to an `engine.ResultWriter` (`internal/engine/resultwriter.go`) — a concrete orchestrator
+over the `Encoder` and `Sink` seams. The Runner decides which steps to write and in what order; the writer owns the
+file-naming convention (`<id>.<ext>` for data, `<id>.meta.<ext>` for metadata), the rule that metadata is only
+written when present, and the close ordering. When `output.archive` is configured, an `ArchiveSink` wraps the
+underlying sink and bundles all step outputs into a single archive file — transparently to the `ResultWriter`.
 
 ### Encoders
 
