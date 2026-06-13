@@ -161,24 +161,24 @@ Test with Kind, RustFS, etc... for the different collectors.
 
 - [x] **Archive support** - Added .tar.gz/tar.zst compression via `output.archive` configuration (completed 2026-01-24)
 - [x] **Environment variables** - Support for environment variables in job files via `--allowed-env` flag and template
-      expansion (completed 2026-01-26)
+  expansion (completed 2026-01-26)
 - [x] **Validate command** - Added `validate` command with pretty error formatting for validation and YAML errors
-      (completed 2026-01-26)
+  (completed 2026-01-26)
 - [x] **Basic test coverage** - Added enginetest shared helpers, encoder tests, hclfuncs tests, HTTP collector tests,
-      and end-to-end runner tests (completed 2026-04-13)
+  and end-to-end runner tests (completed 2026-04-13)
 - [x] **Dry-run mode** - Added a `plan` command that prints the resolved execution plan (topological node order,
-      dependencies, collector bindings, output config) without running collectors or steps. `for_each` cardinality is
-      resolved at plan time when statically knowable, otherwise marked computed-at-runtime. Implemented as a separate
-      command rather than a `collect --dry-run` flag to fit the automation-first (k8s/cronjob) usage (completed
-      2026-06-13)
+  dependencies, collector bindings, output config) without running collectors or steps. `for_each` cardinality is
+  resolved at plan time when statically knowable, otherwise marked computed-at-runtime. Implemented as a separate
+  command rather than a `collect --dry-run` flag to fit the automation-first (k8s/cronjob) usage (completed
+  2026-06-13)
 - [x] **Extract the runner `scope` seam** - Pulled the `step.*`/`collector.*` cty namespaces and all per-node
-      `hcl.EvalContext` construction out of `Runner` into a dedicated `scope` module (`internal/runner/scope.go`).
-      Collapsed the duplicated step-run logic in `runStep`/`runCollection` into a shared `executeStepOnce` kernel.
-      Context-building is now unit-testable in isolation (`scope_test.go`) instead of only through a full `Run`
-      (completed 2026-06-13)
+  `hcl.EvalContext` construction out of `Runner` into a dedicated `scope` module (`internal/runner/scope.go`).
+  Collapsed the duplicated step-run logic in `runStep`/`runCollection` into a shared `executeStepOnce` kernel.
+  Context-building is now unit-testable in isolation (`scope_test.go`) instead of only through a full `Run`
+  (completed 2026-06-13)
 - [x] **Deepen the output path into a `ResultWriter`** - Folded the encode + file-naming (`<id>.<ext>`,
-      `<id>.meta.<ext>`) + meta rule + close ordering out of `Runner.writeResults` into a concrete
-      `engine.ResultWriter` (`internal/engine/resultwriter.go`) over the `Encoder`/`Sink` seams. The Runner now only
-      decides which results and in what order; the write path is unit-testable with a fake encoder + sink
-      (`resultwriter_test.go`). `buildResultWriter` wraps the existing `buildOutputPipeline` HCL decode (completed
-      2026-06-13)
+  `<id>.meta.<ext>`) + meta rule + close ordering out of `Runner.writeResults` into a concrete
+  `engine.ResultWriter` (`internal/engine/resultwriter.go`) over the `Encoder`/`Sink` seams. The Runner now only
+  decides which results and in what order; the write path is unit-testable with a fake encoder + sink
+  (`resultwriter_test.go`). `buildResultWriter` wraps the existing `buildOutputPipeline` HCL decode (completed
+  2026-06-13)

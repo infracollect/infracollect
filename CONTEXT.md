@@ -25,7 +25,7 @@ The resolvable DAG built from a job template — nodes (collectors, steps,
 collections) plus per-node metadata (`Body`, `Refs`, `ForEach`,
 `CollectorAddr`).
 
-**Scope** _(runner internal)_
+**Scope** *(runner internal)*
 The lexical scope that later nodes resolve `step.*` and `collector.*`
 references against during execution. Owns the incremental cty mirrors of those
 two namespaces and is the **only** place that builds a per-node
@@ -40,7 +40,7 @@ What a step produces: `{ id, data, meta }`. Exposed to downstream nodes through
 the scope as `step.<type>.<id>.data` / `.meta`, and handed to the result writer
 at the end of a run.
 
-**Result writer** _(engine)_
+**Result writer** *(engine)*
 The single object the Runner feeds results to once execution finishes. Owns the
 file-naming convention (`<id>.<ext>` for data, `<id>.meta.<ext>` for metadata),
 the rule that metadata is only written when present, and the close ordering.
